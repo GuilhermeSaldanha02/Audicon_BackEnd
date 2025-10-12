@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Unidade } from 'src/unidades/entities/unidade.entity';
 
 @Entity()
 export class Condominio {
@@ -13,4 +14,7 @@ export class Condominio {
 
   @Column()
   endereco: string;
+
+  @OneToMany(() => Unidade, (unidade) => unidade.condominio)
+  unidades: Unidade[];
 }
