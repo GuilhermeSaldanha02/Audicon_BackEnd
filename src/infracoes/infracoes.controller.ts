@@ -29,6 +29,11 @@ export class InfracoesController {
     return this.infracoesService.findOne(id);
   }
 
+  @Post(':id/analisar')
+  analisar(@Param('id', ParseIntPipe) id: number) {
+    return this.infracoesService.analisar(id);
+  }
+
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,

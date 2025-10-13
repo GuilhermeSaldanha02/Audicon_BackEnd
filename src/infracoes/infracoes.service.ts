@@ -5,6 +5,8 @@ import { Infracao } from './entities/infracao.entity';
 import { CreateInfracaoDto } from './dto/create-infracao.dto';
 import { UpdateInfracaoDto } from './dto/update-infracao.dto';
 import { UnidadesService } from 'src/unidades/unidades.service';
+import { IaService } from 'src/ia/ia.service';
+import { InfracaoStatus } from './entities/infracao.entity';
 
 @Injectable()
 export class InfracoesService {
@@ -12,6 +14,7 @@ export class InfracoesService {
     @InjectRepository(Infracao)
     private readonly infracoesRepository: Repository<Infracao>,
     private readonly unidadesService: UnidadesService,
+    private readonly iaService: IaService,
   ) {}
 
   async create(unidadeId: number, dto: CreateInfracaoDto) {
@@ -45,5 +48,14 @@ export class InfracoesService {
   async remove(id: number) {
     await this.findOne(id);
     await this.infracoesRepository.delete(id);
+  }
+
+  async analisar(id: number) {
+    const infracao = await this.findOne(id);
+    const resultadoIa = await this.iaService.analisarInfracao(infracao);
+    infracao.descricao_formal = resultadoIa.descricao_formal;
+    infracao.penalidade_sugerida = resultadoIa.penalidade_sugerida;
+    infracao.status = InfracaoStatus.ANALISADA;
+    return this.infracoesRepository.save(infracao);
   }
 }

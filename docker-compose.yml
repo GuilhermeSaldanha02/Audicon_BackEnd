@@ -1,13 +1,14 @@
-version: '3.9'
+version: '3.8'
 
 services:
   db:
     image: postgres:16-alpine
     container_name: audicon_db
+    restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cqc_db
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
     ports:
       - '5432:5432'
     volumes:
@@ -27,11 +28,14 @@ services:
     ports:
       - '3000:3000'
     env_file:
-      - .env.example
+      - .env
     environment:
-      DB_HOST: db
-      NODE_ENV: development
-    command: ["node", "dist/main.js"]
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    # Comando otimizado para desenvolvimento com instalação de dependências e watch (hot-reload)
+    command: sh -c "npm ci && npm run start:dev"
 
 volumes:
   postgres_data:
