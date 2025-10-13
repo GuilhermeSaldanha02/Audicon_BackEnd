@@ -9,6 +9,7 @@ import { CondominiosModule } from './condominios/condominios.module';
 import { UnidadesModule } from './unidades/unidades.module';
 import { InfracoesModule } from './infracoes/infracoes.module';
 import { IaModule } from './ia/ia.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { IaModule } from './ia/ia.module';
     UnidadesModule,
     InfracoesModule,
     IaModule,
+    PdfModule,
   ],
   controllers: [AppController],
   providers: [AppService],
