@@ -8,6 +8,7 @@ import { CondominiosModule } from 'src/condominios/condominios.module';
 @Module({
   imports: [TypeOrmModule.forFeature([Unidade]), CondominiosModule],
   controllers: [UnidadesController],
-  providers: [UnidadesService]
+  providers: [UnidadesService],
+  exports: [UnidadesService]
 })
 export class UnidadesModule {}

@@ -2,24 +2,20 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Infracao } from './entities/infracao.entity';
-import { Unidade } from 'src/unidades/entities/unidade.entity';
 import { CreateInfracaoDto } from './dto/create-infracao.dto';
 import { UpdateInfracaoDto } from './dto/update-infracao.dto';
+import { UnidadesService } from 'src/unidades/unidades.service';
 
 @Injectable()
 export class InfracoesService {
   constructor(
     @InjectRepository(Infracao)
     private readonly infracoesRepository: Repository<Infracao>,
-    @InjectRepository(Unidade)
-    private readonly unidadesRepository: Repository<Unidade>,
+    private readonly unidadesService: UnidadesService,
   ) {}
 
   async create(unidadeId: number, dto: CreateInfracaoDto) {
-    const unidade = await this.unidadesRepository.findOneBy({ id: unidadeId });
-    if (!unidade) {
-      throw new NotFoundException(`Unidade com ID #${unidadeId} não encontrada.`);
-    }
+    const unidade = await this.unidadesService.findOne(unidadeId);
     const infracao = this.infracoesRepository.create({
       ...dto,
       unidade,
@@ -27,11 +23,8 @@ export class InfracoesService {
     return this.infracoesRepository.save(infracao);
   }
 
-  async findAllByUnidade(unidadeId: number) {
-    const unidade = await this.unidadesRepository.findOneBy({ id: unidadeId });
-    if (!unidade) {
-      throw new NotFoundException(`Unidade com ID #${unidadeId} não encontrada.`);
-    }
+  async findAll(unidadeId: number) {
+    await this.unidadesService.findOne(unidadeId);
     return this.infracoesRepository.find({ where: { unidade: { id: unidadeId } } });
   }
 

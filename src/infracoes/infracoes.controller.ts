@@ -5,7 +5,7 @@ import { CreateInfracaoDto } from './dto/create-infracao.dto';
 import { UpdateInfracaoDto } from './dto/update-infracao.dto';
 
 @UseGuards(JwtAuthGuard)
-@Controller('condominios/:condominioId/unidades/:unidadeId/infracoes')
+@Controller('unidades/:unidadeId/infracoes')
 export class InfracoesController {
   constructor(private readonly infracoesService: InfracoesService) {}
 
@@ -21,7 +21,7 @@ export class InfracoesController {
   findAll(
     @Param('unidadeId', ParseIntPipe) unidadeId: number,
   ) {
-    return this.infracoesService.findAllByUnidade(unidadeId);
+    return this.infracoesService.findAll(unidadeId);
   }
 
   @Get(':id')
