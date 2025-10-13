@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, ParseIntPipe, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfracoesService } from './infracoes.service';
 import { CreateInfracaoDto } from './dto/create-infracao.dto';
@@ -32,6 +33,22 @@ export class InfracoesController {
   @Post(':id/analisar')
   analisar(@Param('id', ParseIntPipe) id: number) {
     return this.infracoesService.analisar(id);
+  }
+
+  @Get(':id/documento')
+  async gerarDocumento(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.infracoesService.gerarDocumento(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=infracao-${id}.pdf`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
   }
 
   @Patch(':id')

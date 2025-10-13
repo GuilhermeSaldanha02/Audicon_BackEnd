@@ -6,6 +6,7 @@ import { CreateInfracaoDto } from './dto/create-infracao.dto';
 import { UpdateInfracaoDto } from './dto/update-infracao.dto';
 import { UnidadesService } from 'src/unidades/unidades.service';
 import { IaService } from 'src/ia/ia.service';
+import { PdfService } from 'src/pdf/pdf.service';
 import { InfracaoStatus } from './entities/infracao.entity';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class InfracoesService {
     private readonly infracoesRepository: Repository<Infracao>,
     private readonly unidadesService: UnidadesService,
     private readonly iaService: IaService,
+    private readonly pdfService: PdfService,
   ) {}
 
   async create(unidadeId: number, dto: CreateInfracaoDto) {
@@ -57,5 +59,22 @@ export class InfracoesService {
     infracao.penalidade_sugerida = resultadoIa.penalidade_sugerida;
     infracao.status = InfracaoStatus.ANALISADA;
     return this.infracoesRepository.save(infracao);
+  }
+
+  async gerarDocumento(id: number): Promise<Buffer> {
+    const infracao = await this.infracoesRepository.findOne({
+      where: { id },
+      relations: ['unidade', 'unidade.condominio'],
+    });
+
+    if (!infracao) {
+      throw new NotFoundException(`Infração com ID #${id} não encontrada.`);
+    }
+
+    if (!infracao.descricao_formal) {
+      throw new NotFoundException(`A infração com ID #${id} ainda não foi analisada pela IA.`);
+    }
+
+    return this.pdfService.gerarDocumentoInfracao(infracao);
   }
 }
