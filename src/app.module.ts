@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { CondominiosModule } from './condominios/condominios.module';
 import { UnidadesModule } from './unidades/unidades.module';
 import { InfracoesModule } from './infracoes/infracoes.module';
+import { IaModule } from './ia/ia.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { InfracoesModule } from './infracoes/infracoes.module';
     CondominiosModule,
     UnidadesModule,
     InfracoesModule,
+    IaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
