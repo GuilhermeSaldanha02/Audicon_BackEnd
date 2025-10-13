@@ -33,27 +33,27 @@ export class InfracoesService {
     return this.infracoesRepository.find({ where: { unidade: { id: unidadeId } } });
   }
 
-  async findOne(id: number) {
-    const infracao = await this.infracoesRepository.findOne({ where: { id }, relations: ['unidade'] });
+  async findOne(unidadeId: number, id: number) {
+    const infracao = await this.infracoesRepository.findOne({ where: { id, unidade: { id: unidadeId } }, relations: ['unidade'] });
     if (!infracao) {
       throw new NotFoundException(`Infração com ID #${id} não encontrada.`);
     }
     return infracao;
   }
 
-  async update(id: number, dto: UpdateInfracaoDto) {
-    await this.findOne(id);
+  async update(unidadeId: number, id: number, dto: UpdateInfracaoDto) {
+    await this.findOne(unidadeId, id);
     await this.infracoesRepository.update(id, dto);
-    return this.findOne(id);
+    return this.findOne(unidadeId, id);
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
+  async remove(unidadeId: number, id: number) {
+    await this.findOne(unidadeId, id);
     await this.infracoesRepository.delete(id);
   }
 
-  async analisar(id: number) {
-    const infracao = await this.findOne(id);
+  async analisar(unidadeId: number, id: number) {
+    const infracao = await this.findOne(unidadeId, id);
     const resultadoIa = await this.iaService.analisarInfracao(infracao);
     infracao.descricao_formal = resultadoIa.descricao_formal;
     infracao.penalidade_sugerida = resultadoIa.penalidade_sugerida;
@@ -61,9 +61,9 @@ export class InfracoesService {
     return this.infracoesRepository.save(infracao);
   }
 
-  async gerarDocumento(id: number): Promise<Buffer> {
+  async gerarDocumento(unidadeId: number, id: number): Promise<Buffer> {
     const infracao = await this.infracoesRepository.findOne({
-      where: { id },
+      where: { id, unidade: { id: unidadeId } },
       relations: ['unidade', 'unidade.condominio'],
     });
 

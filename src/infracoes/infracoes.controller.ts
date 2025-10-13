@@ -26,21 +26,28 @@ export class InfracoesController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.infracoesService.findOne(id);
+  findOne(
+    @Param('unidadeId', ParseIntPipe) unidadeId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.infracoesService.findOne(unidadeId, id);
   }
 
   @Post(':id/analisar')
-  analisar(@Param('id', ParseIntPipe) id: number) {
-    return this.infracoesService.analisar(id);
+  analisar(
+    @Param('unidadeId', ParseIntPipe) unidadeId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.infracoesService.analisar(unidadeId, id);
   }
 
   @Get(':id/documento')
   async gerarDocumento(
+    @Param('unidadeId', ParseIntPipe) unidadeId: number,
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
-    const pdfBuffer = await this.infracoesService.gerarDocumento(id);
+    const pdfBuffer = await this.infracoesService.gerarDocumento(unidadeId, id);
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -53,14 +60,18 @@ export class InfracoesController {
 
   @Patch(':id')
   update(
+    @Param('unidadeId', ParseIntPipe) unidadeId: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateInfracaoDto,
   ) {
-    return this.infracoesService.update(id, dto);
+    return this.infracoesService.update(unidadeId, id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.infracoesService.remove(id);
+  remove(
+    @Param('unidadeId', ParseIntPipe) unidadeId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.infracoesService.remove(unidadeId, id);
   }
 }

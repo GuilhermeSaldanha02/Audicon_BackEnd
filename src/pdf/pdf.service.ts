@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Infracao } from 'src/infracoes/entities/infracao.entity';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 
 @Injectable()
 export class PdfService {
