@@ -1,7 +1,7 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { Infracao } from 'src/infracoes/entities/infracao.entity';
+import { Infraction } from 'src/infractions/entities/infraction.entity';
 
 @Injectable()
 export class IaService {
@@ -10,8 +10,8 @@ export class IaService {
   constructor(private readonly configService: ConfigService) {}
 
   async analisarInfracao(
-    infracao: Infracao,
-  ): Promise<{ descricao_formal: string; penalidade_sugerida: string }> {
+    infraction: Infraction,
+  ): Promise<{ descricao_formal?: string; penalidade_sugerida?: string; formalDescription?: string; suggestedPenalty?: string }> {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
     // --- PONTO DE LOG 1: VERIFICAR A CHAVE API ---
@@ -22,14 +22,16 @@ export class IaService {
       if (nodeEnv !== 'production') {
         this.logger.warn('Usando resposta mock de IA (desenvolvimento, sem chave GEMINI).');
         return {
-          descricao_formal: `Relato formal: ${infracao.descricao}`,
+          descricao_formal: `Relato formal: ${infraction.description}`,
           penalidade_sugerida: 'Advertência',
+          formalDescription: `Formal report: ${infraction.description}`,
+          suggestedPenalty: 'Warning',
         };
       }
       throw new InternalServerErrorException('A chave da API do Gemini não foi configurada.');
     }
 
-    const prompt = this.construirPrompt(infracao.descricao);
+    const prompt = this.construirPrompt(infraction.description);
 
     const modelName = 'gemini-pro';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
@@ -69,8 +71,10 @@ export class IaService {
       if (nodeEnv !== 'production') {
         this.logger.warn('Usando resposta mock de IA (desenvolvimento, falha na API Gemini).');
         return {
-          descricao_formal: `Relato formal: ${infracao.descricao}`,
+          descricao_formal: `Relato formal: ${infraction.description}`,
           penalidade_sugerida: 'Advertência',
+          formalDescription: `Formal report: ${infraction.description}`,
+          suggestedPenalty: 'Warning',
         };
       }
       throw new InternalServerErrorException('Falha ao analisar a infração com a IA do Gemini.');
