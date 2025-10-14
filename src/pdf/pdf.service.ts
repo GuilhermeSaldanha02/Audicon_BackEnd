@@ -1,50 +1,50 @@
 import { Injectable } from '@nestjs/common';
-import { Infracao } from 'src/infracoes/entities/infracao.entity';
+import { Infraction } from 'src/infractions/entities/infraction.entity';
 import PDFDocument = require('pdfkit');
 
 @Injectable()
 export class PdfService {
-  async gerarDocumentoInfracao(infracao: Infracao): Promise<Buffer> {
+  async gerarDocumentoInfracao(infraction: Infraction): Promise<Buffer> {
     const doc = new PDFDocument({ margin: 50 });
 
     // Pipe the PDF content to a buffer
     const buffers: Buffer[] = [];
     doc.on('data', buffers.push.bind(buffers));
 
-    // --- Construção do Documento ---
+    // --- Document Construction ---
 
-    // Cabeçalho (simples, pode adicionar um logo depois)
-    doc.fontSize(20).text('Notificação de Infração', { align: 'center' });
+    // Header (simple, you can add a logo later)
+    doc.fontSize(20).text('Infraction Notice', { align: 'center' });
     doc.moveDown();
 
-    // Informações do Condomínio e Unidade
-    doc.fontSize(12).text(`Condomínio: ${infracao.unidade.condominio.nome}`);
-    doc.text(`Unidade: ${infracao.unidade.identificador}`);
-    doc.text(`Proprietário: ${infracao.unidade.proprietario_nome}`);
+    // Condominium and Unit information
+    doc.fontSize(12).text(`Condominium: ${infraction.unit.condominium.name}`);
+    doc.text(`Unit: ${infraction.unit.identifier}`);
+    doc.text(`Owner: ${infraction.unit.ownerName}`);
     doc.moveDown();
 
-    // Detalhes da Infração
-    doc.fontSize(14).text('Detalhes da Ocorrência', { underline: true });
+    // Infraction details
+    doc.fontSize(14).text('Occurrence Details', { underline: true });
     doc.moveDown();
     doc.fontSize(12);
-    doc.text(`Data da Ocorrência: ${new Date(infracao.data_ocorrencia).toLocaleString('pt-BR')}`);
+    doc.text(`Occurrence Date: ${new Date(infraction.occurrenceDate).toLocaleString('en-US')}`);
     doc.moveDown();
-    doc.text('Descrição:', { continued: false });
-    doc.text(infracao.descricao_formal || 'Descrição não disponível.', {
+    doc.text('Description:', { continued: false });
+    doc.text(infraction.formalDescription || 'Description not available.', {
       align: 'justify',
       indent: 20,
     });
     doc.moveDown();
 
-    // Penalidade Sugerida
-    doc.fontSize(14).text('Ação Recomendada', { underline: true });
+    // Suggested penalty
+    doc.fontSize(14).text('Recommended Action', { underline: true });
     doc.moveDown();
-    doc.fontSize(12).text(`A penalidade sugerida para esta ocorrência é: ${infracao.penalidade_sugerida || 'Não definida'}.`);
+    doc.fontSize(12).text(`The suggested penalty for this occurrence is: ${infraction.suggestedPenalty || 'Not defined'}.`);
     doc.moveDown(3);
 
-    // Rodapé
-    doc.fontSize(10).text('Atenciosamente,', { align: 'center'});
-    doc.fontSize(10).text('Administradora Audicon Condomínios', { align: 'center' });
+    // Footer
+    doc.fontSize(10).text('Sincerely,', { align: 'center'});
+    doc.fontSize(10).text('Audicon Condominiums Administration', { align: 'center' });
 
     // --- Fim da Construção ---
 
