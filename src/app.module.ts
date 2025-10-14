@@ -5,9 +5,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
-import { CondominiosModule } from './condominios/condominios.module';
-import { UnidadesModule } from './unidades/unidades.module';
-import { InfracoesModule } from './infracoes/infracoes.module';
+import { CondominiumsModule } from './condominiums/condominiums.module';
+import { UnitsModule } from './units/units.module';
+import { InfractionsModule } from './infractions/infractions.module';
 import { IaModule } from './ia/ia.module';
 import { PdfModule } from './pdf/pdf.module';
 
@@ -28,14 +28,14 @@ import { PdfModule } from './pdf/pdf.module';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         autoLoadEntities: true,
-        synchronize: configService.get('NODE_ENV') !== 'production',
+        synchronize: false,
       }),
     }),
     UsersModule,
     AuthModule,
-    CondominiosModule,
-    UnidadesModule,
-    InfracoesModule,
+    CondominiumsModule,
+    UnitsModule,
+    InfractionsModule,
     IaModule,
     PdfModule,
   ],
