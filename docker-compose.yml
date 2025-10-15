@@ -34,7 +34,6 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    # Comando otimizado para desenvolvimento com instalação de dependências e watch (hot-reload)
     command: sh -c "npm ci && npm run start:dev"
 
 volumes:
