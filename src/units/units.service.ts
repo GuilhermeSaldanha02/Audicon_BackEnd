@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CondominiumsService } from 'src/condominiums/condominiums.service';
@@ -23,8 +28,13 @@ export class UnitsService {
       });
       return await this.unitsRepository.save(newUnit);
     } catch (error) {
-      if (error instanceof QueryFailedError && (error as any)?.driverError?.code === '23505') {
-        throw new ConflictException('A unit with this identifier already exists.');
+      if (
+        error instanceof QueryFailedError &&
+        (error as any)?.driverError?.code === '23505'
+      ) {
+        throw new ConflictException(
+          'A unit with this identifier already exists.',
+        );
       }
       throw new InternalServerErrorException('Failed to create unit.');
     }

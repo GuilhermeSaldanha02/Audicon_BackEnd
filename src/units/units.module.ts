@@ -9,6 +9,6 @@ import { CondominiumsModule } from 'src/condominiums/condominiums.module';
   imports: [TypeOrmModule.forFeature([Unit]), CondominiumsModule],
   controllers: [UnitsController],
   providers: [UnitsService],
-  exports: [UnitsService]
+  exports: [UnitsService],
 })
 export class UnitsModule {}

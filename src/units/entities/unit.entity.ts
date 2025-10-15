@@ -1,6 +1,12 @@
 import { Condominium } from 'src/condominiums/entities/condominium.entity';
 import { Infraction } from 'src/infractions/entities/infraction.entity';
-import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 @Entity()
 export class Unit {
