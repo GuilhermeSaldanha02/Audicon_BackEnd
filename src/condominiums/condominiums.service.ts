@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { Condominium } from './entities/condominium.entity';
@@ -14,11 +19,17 @@ export class CondominiumsService {
 
   async create(createCondominiumDto: CreateCondominiumDto) {
     try {
-      const newCondominium = this.condominiumsRepository.create(createCondominiumDto);
+      const newCondominium =
+        this.condominiumsRepository.create(createCondominiumDto);
       return await this.condominiumsRepository.save(newCondominium);
     } catch (error) {
-      if (error instanceof QueryFailedError && (error as any)?.driverError?.code === '23505') {
-        throw new ConflictException('A condominium with this CNPJ already exists.');
+      if (
+        error instanceof QueryFailedError &&
+        (error as any)?.driverError?.code === '23505'
+      ) {
+        throw new ConflictException(
+          'A condominium with this CNPJ already exists.',
+        );
       }
       throw new InternalServerErrorException('Failed to create condominium.');
     }
