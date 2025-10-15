@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Infraction } from 'src/infractions/entities/infraction.entity';
-import PDFDocument = require('pdfkit');
+import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class PdfService {
@@ -27,7 +27,9 @@ export class PdfService {
     doc.fontSize(14).text('Occurrence Details', { underline: true });
     doc.moveDown();
     doc.fontSize(12);
-    doc.text(`Occurrence Date: ${new Date(infraction.occurrenceDate).toLocaleString('en-US')}`);
+    doc.text(
+      `Occurrence Date: ${new Date(infraction.occurrenceDate).toLocaleString('en-US')}`,
+    );
     doc.moveDown();
     doc.text('Description:', { continued: false });
     doc.text(infraction.formalDescription || 'Description not available.', {
@@ -39,12 +41,18 @@ export class PdfService {
     // Suggested penalty
     doc.fontSize(14).text('Recommended Action', { underline: true });
     doc.moveDown();
-    doc.fontSize(12).text(`The suggested penalty for this occurrence is: ${infraction.suggestedPenalty || 'Not defined'}.`);
+    doc
+      .fontSize(12)
+      .text(
+        `The suggested penalty for this occurrence is: ${infraction.suggestedPenalty || 'Not defined'}.`,
+      );
     doc.moveDown(3);
 
     // Footer
-    doc.fontSize(10).text('Sincerely,', { align: 'center'});
-    doc.fontSize(10).text('Audicon Condominiums Administration', { align: 'center' });
+    doc.fontSize(10).text('Sincerely,', { align: 'center' });
+    doc
+      .fontSize(10)
+      .text('Audicon Condominiums Administration', { align: 'center' });
 
     // --- Fim da Construção ---
 
