@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { Infraction } from 'src/infractions/entities/infraction.entity';
@@ -9,18 +13,27 @@ export class IaService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async analisarInfracao(
-    infraction: Infraction,
-  ): Promise<{ descricao_formal?: string; penalidade_sugerida?: string; formalDescription?: string; suggestedPenalty?: string }> {
+  async analisarInfracao(infraction: Infraction): Promise<{
+    descricao_formal?: string;
+    penalidade_sugerida?: string;
+    formalDescription?: string;
+    suggestedPenalty?: string;
+  }> {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
     // --- PONTO DE LOG 1: VERIFICAR A CHAVE API ---
-    this.logger.log(`A usar a chave de API do Gemini que começa com: ${apiKey?.substring(0, 5)}...`);
+    this.logger.log(
+      `A usar a chave de API do Gemini que começa com: ${apiKey?.substring(0, 5)}...`,
+    );
     if (!apiKey) {
-      this.logger.error('A chave da API do Gemini (GEMINI_API_KEY) não foi encontrada no ficheiro .env');
+      this.logger.error(
+        'A chave da API do Gemini (GEMINI_API_KEY) não foi encontrada no ficheiro .env',
+      );
       // Fallback em desenvolvimento
       if (nodeEnv !== 'production') {
-        this.logger.warn('Usando resposta mock de IA (desenvolvimento, sem chave GEMINI).');
+        this.logger.warn(
+          'Usando resposta mock de IA (desenvolvimento, sem chave GEMINI).',
+        );
         return {
           descricao_formal: `Relato formal: ${infraction.description}`,
           penalidade_sugerida: 'Advertência',
@@ -28,7 +41,9 @@ export class IaService {
           suggestedPenalty: 'Warning',
         };
       }
-      throw new InternalServerErrorException('A chave da API do Gemini não foi configurada.');
+      throw new InternalServerErrorException(
+        'A chave da API do Gemini não foi configurada.',
+      );
     }
 
     const prompt = this.construirPrompt(infraction.description);
@@ -57,19 +72,27 @@ export class IaService {
 
       this.logger.log('Resposta recebida com sucesso da API do Gemini.');
 
-      const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+      const content =
+        response.data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
       // Limpeza para garantir que apenas o JSON seja processado, removendo blocos de código markdown.
-      const cleanedJsonString = content.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanedJsonString = content
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
 
       return JSON.parse(cleanedJsonString);
-
     } catch (error) {
       // --- PONTO DE LOG 3: ERRO DETALHADO ---
-      this.logger.error("Erro detalhado ao chamar a API do Gemini:", (error as any)?.response?.data || (error as any)?.message);
+      this.logger.error(
+        'Erro detalhado ao chamar a API do Gemini:',
+        (error as any)?.response?.data || (error as any)?.message,
+      );
       // Fallback em desenvolvimento
       if (nodeEnv !== 'production') {
-        this.logger.warn('Usando resposta mock de IA (desenvolvimento, falha na API Gemini).');
+        this.logger.warn(
+          'Usando resposta mock de IA (desenvolvimento, falha na API Gemini).',
+        );
         return {
           descricao_formal: `Relato formal: ${infraction.description}`,
           penalidade_sugerida: 'Advertência',
@@ -77,7 +100,9 @@ export class IaService {
           suggestedPenalty: 'Warning',
         };
       }
-      throw new InternalServerErrorException('Falha ao analisar a infração com a IA do Gemini.');
+      throw new InternalServerErrorException(
+        'Falha ao analisar a infração com a IA do Gemini.',
+      );
     }
   }
 
