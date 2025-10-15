@@ -86,9 +86,21 @@
       "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*service.ts",
+      "**/*controller.ts",
+      "!**/*.spec.ts"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/main.ts",
+      "<rootDir>/app.module.ts",
+      "<rootDir>/data-source.ts"
+    ],
+    "testEnvironment": "node",
+    "coverageReporters": [
+      "text-summary",
+      "json-summary"
+    ]
   }
 }
