@@ -15,6 +15,6 @@ import { PdfModule } from 'src/pdf/pdf.module';
     PdfModule,
   ],
   controllers: [InfractionsController],
-  providers: [InfractionsService]
+  providers: [InfractionsService],
 })
 export class InfractionsModule {}
