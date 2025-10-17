@@ -1,5 +1,5 @@
-import { Condominium } from 'src/condominiums/entities/condominium.entity';
-import { Infraction } from 'src/infractions/entities/infraction.entity';
+import { Condominium } from '../../condominiums/entities/condominium.entity';
+import { Infraction } from '../../infractions/entities/infraction.entity';
 import {
   Column,
   Entity,

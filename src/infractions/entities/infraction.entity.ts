@@ -1,4 +1,4 @@
-import { Unit } from 'src/units/entities/unit.entity';
+import { Unit } from '../../units/entities/unit.entity';
 import {
   Column,
   CreateDateColumn,
