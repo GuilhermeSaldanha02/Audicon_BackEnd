@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 import { Condominium } from './condominiums/entities/condominium.entity';
@@ -19,5 +20,3 @@ const appDataSourceOptions = {
 };
 
 export const AppDataSource = new DataSource(appDataSourceOptions);
-
-export default AppDataSource;
