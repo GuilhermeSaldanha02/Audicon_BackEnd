@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
@@ -35,6 +33,14 @@ services:
       - .:/usr/src/app
       - /usr/src/app/node_modules
     command: sh -c "npm ci && npm run start:dev"
+    develop:
+      watch:
+        - path: Dockerfile
+          action: rebuild
+        - path: package.json
+          action: rebuild
+        - path: package-lock.json
+          action: rebuild
 
 volumes:
   postgres_data:
