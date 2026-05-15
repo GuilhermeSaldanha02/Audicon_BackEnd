@@ -128,6 +128,36 @@ describe('envValidationSchema', () => {
     expect(error!.message).toContain('GEMINI_TIMEOUT_MS');
   });
 
+  it('accepts valid LOG_LEVEL values', () => {
+    for (const level of [
+      'fatal',
+      'error',
+      'warn',
+      'info',
+      'debug',
+      'trace',
+      'silent',
+    ]) {
+      const env = { ...validEnv, LOG_LEVEL: level };
+      const { error } = validate(env);
+      expect(error).toBeUndefined();
+    }
+  });
+
+  it('rejects invalid LOG_LEVEL', () => {
+    const env = { ...validEnv, LOG_LEVEL: 'verbose' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('LOG_LEVEL');
+  });
+
+  it('treats LOG_LEVEL as optional', () => {
+    const env = { ...validEnv };
+    delete (env as any).LOG_LEVEL;
+    const { error } = validate(env);
+    expect(error).toBeUndefined();
+  });
+
   it('allows unknown extra variables', () => {
     const env = { ...validEnv, RANDOM_THING: 'whatever' };
     const { error } = validate(env);
