@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfractionsService } from './infractions.service';
@@ -51,10 +52,12 @@ export class InfractionsController {
     return this.infractionsService.findOne(id);
   }
 
-  @ApiOperation({ summary: 'Analisar infração via IA (Gemini)' })
+  @ApiOperation({ summary: 'Analisar infração via IA (Gemini) — limite: 10 req/min' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Infração analisada, status → analyzed' })
+  @ApiResponse({ status: 429, description: 'Muitas requisições — aguarde antes de tentar novamente' })
   @ApiResponse({ status: 502, description: 'Erro na API Gemini' })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post(':id/analyze')
   analyze(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.analyze(id);

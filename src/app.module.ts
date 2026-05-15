@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -17,6 +19,7 @@ import {
   envValidationSchema,
 } from './common/config/env.schema';
 import { buildLoggerConfig } from './common/logger/logger.config';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -24,6 +27,7 @@ import { buildLoggerConfig } from './common/logger/logger.config';
       validationSchema: envValidationSchema,
       validationOptions: envValidationOptions,
     }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     LoggerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -55,6 +59,9 @@ import { buildLoggerConfig } from './common/logger/logger.config';
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}
