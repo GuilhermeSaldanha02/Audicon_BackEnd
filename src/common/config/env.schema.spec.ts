@@ -1,0 +1,116 @@
+import { envValidationOptions, envValidationSchema } from './env.schema';
+
+const validEnv = {
+  NODE_ENV: 'test',
+  PORT: '3000',
+  DB_HOST: 'localhost',
+  DB_PORT: '5432',
+  DB_USERNAME: 'postgres',
+  DB_PASSWORD: 'secret',
+  DB_DATABASE: 'audicon',
+  JWT_SECRET: 'a-very-long-secret-string-1234',
+  JWT_EXPIRATION: '3600s',
+  CORS_ORIGINS: 'http://localhost:4173',
+};
+
+function validate(env: Record<string, unknown>) {
+  return envValidationSchema.validate(env, envValidationOptions);
+}
+
+describe('envValidationSchema', () => {
+  it('accepts a fully valid environment', () => {
+    const { error, value } = validate(validEnv);
+    expect(error).toBeUndefined();
+    expect(value.NODE_ENV).toBe('test');
+    expect(value.PORT).toBe(3000);
+    expect(value.DB_PORT).toBe(5432);
+  });
+
+  it('applies defaults for NODE_ENV and PORT when omitted', () => {
+    const env = { ...validEnv };
+    delete (env as any).NODE_ENV;
+    delete (env as any).PORT;
+    const { error, value } = validate(env);
+    expect(error).toBeUndefined();
+    expect(value.NODE_ENV).toBe('development');
+    expect(value.PORT).toBe(3000);
+  });
+
+  it.each([
+    'DB_HOST',
+    'DB_PORT',
+    'DB_USERNAME',
+    'DB_PASSWORD',
+    'DB_DATABASE',
+    'JWT_SECRET',
+    'JWT_EXPIRATION',
+    'CORS_ORIGINS',
+  ])('rejects when required variable %s is missing', (varName) => {
+    const env = { ...validEnv };
+    delete (env as any)[varName];
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain(varName);
+  });
+
+  it('reports ALL missing variables at once (abortEarly: false)', () => {
+    const env: Record<string, unknown> = {};
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.details.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('rejects JWT_SECRET shorter than 16 chars', () => {
+    const env = { ...validEnv, JWT_SECRET: 'short' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('JWT_SECRET');
+  });
+
+  it('rejects invalid NODE_ENV', () => {
+    const env = { ...validEnv, NODE_ENV: 'staging' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('NODE_ENV');
+  });
+
+  it('rejects non-numeric PORT', () => {
+    const env = { ...validEnv, PORT: 'not-a-number' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('PORT');
+  });
+
+  it('rejects PORT out of range', () => {
+    const env = { ...validEnv, PORT: '99999' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('PORT');
+  });
+
+  it('rejects non-numeric DB_PORT', () => {
+    const env = { ...validEnv, DB_PORT: 'abc' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('DB_PORT');
+  });
+
+  it('allows GEMINI_API_KEY to be absent', () => {
+    const env = { ...validEnv };
+    const { error } = validate(env);
+    expect(error).toBeUndefined();
+  });
+
+  it('rejects invalid GEMINI_API_ENDPOINT (non-URI)', () => {
+    const env = { ...validEnv, GEMINI_API_ENDPOINT: 'not a uri' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('GEMINI_API_ENDPOINT');
+  });
+
+  it('allows unknown extra variables', () => {
+    const env = { ...validEnv, RANDOM_THING: 'whatever' };
+    const { error } = validate(env);
+    expect(error).toBeUndefined();
+  });
+});

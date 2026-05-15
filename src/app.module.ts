@@ -10,10 +10,16 @@ import { UnitsModule } from './units/units.module';
 import { InfractionsModule } from './infractions/infractions.module';
 import { IaModule } from './ia/ia.module';
 import { PdfModule } from './pdf/pdf.module';
+import {
+    envValidationOptions,
+    envValidationSchema,
+} from './common/config/env.schema';
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
+            validationSchema: envValidationSchema,
+            validationOptions: envValidationOptions,
         }),
         TypeOrmModule.forRootAsync({
             imports: [ConfigModule],
