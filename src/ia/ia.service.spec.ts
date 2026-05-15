@@ -118,15 +118,17 @@ describe('IaService', () => {
       GEMINI_TIMEOUT_MS: 50,
     });
     const mockModel = {
-      generateContent: jest.fn().mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(
-              () => resolve({ response: { text: () => '{}' } }),
-              500,
+      generateContent: jest
+        .fn()
+        .mockImplementation(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () => resolve({ response: { text: () => '{}' } }),
+                500,
+              ),
             ),
-          ),
-      ),
+        ),
     };
     (service as any).model = mockModel;
     (service as any).nodeEnv = 'production';

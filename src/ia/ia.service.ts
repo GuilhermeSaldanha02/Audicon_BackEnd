@@ -114,7 +114,10 @@ export class IaService implements OnModuleInit {
       return this.getFallbackResponse(infraction);
     }
 
-    const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const cleaned = rawText
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
     let parsed: any;
     try {
       parsed = JSON.parse(cleaned);

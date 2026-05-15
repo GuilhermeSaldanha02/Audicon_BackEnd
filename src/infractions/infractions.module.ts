@@ -9,15 +9,14 @@ import { IaModule } from 'src/ia/ia.module';
 import { PdfModule } from 'src/pdf/pdf.module';
 import { CondominiumsModule } from 'src/condominiums/condominiums.module';
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Infraction]),
-        UnitsModule,
-        IaModule,
-        PdfModule,
-        CondominiumsModule,
-    ],
-    controllers: [InfractionsController, ReportsController],
-    providers: [InfractionsService],
+  imports: [
+    TypeOrmModule.forFeature([Infraction]),
+    UnitsModule,
+    IaModule,
+    PdfModule,
+    CondominiumsModule,
+  ],
+  controllers: [InfractionsController, ReportsController],
+  providers: [InfractionsService],
 })
-export class InfractionsModule {
-}
+export class InfractionsModule {}
