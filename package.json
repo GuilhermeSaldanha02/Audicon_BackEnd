@@ -113,6 +113,38 @@
     "coverageReporters": [
       "text-summary",
       "json-summary"
-    ]
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 88,
+        "functions": 84,
+        "lines": 88,
+        "branches": 65
+      },
+      "./src/auth/": {
+        "statements": 90,
+        "functions": 63,
+        "lines": 90,
+        "branches": 60
+      },
+      "./src/ia/": {
+        "statements": 70,
+        "functions": 80,
+        "lines": 70,
+        "branches": 45
+      },
+      "./src/pdf/": {
+        "statements": 85,
+        "functions": 85,
+        "lines": 85,
+        "branches": 60
+      },
+      "./src/infractions/": {
+        "statements": 88,
+        "functions": 88,
+        "lines": 88,
+        "branches": 60
+      }
+    }
   }
 }
