@@ -108,6 +108,26 @@ describe('envValidationSchema', () => {
     expect(error!.message).toContain('GEMINI_API_ENDPOINT');
   });
 
+  it('applies default GEMINI_TIMEOUT_MS when omitted', () => {
+    const { error, value } = validate(validEnv);
+    expect(error).toBeUndefined();
+    expect(value.GEMINI_TIMEOUT_MS).toBe(15000);
+  });
+
+  it('rejects GEMINI_TIMEOUT_MS below minimum', () => {
+    const env = { ...validEnv, GEMINI_TIMEOUT_MS: '500' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('GEMINI_TIMEOUT_MS');
+  });
+
+  it('rejects GEMINI_TIMEOUT_MS above maximum', () => {
+    const env = { ...validEnv, GEMINI_TIMEOUT_MS: '120000' };
+    const { error } = validate(env);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('GEMINI_TIMEOUT_MS');
+  });
+
   it('allows unknown extra variables', () => {
     const env = { ...validEnv, RANDOM_THING: 'whatever' };
     const { error } = validate(env);
