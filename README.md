@@ -243,13 +243,17 @@ Exemplo de resposta:
   "data": {
     "status": "online",
     "environment": "development",
-    "database": "connected",
     "timestamp": "2025-01-01T00:00:00.000Z"
   }
 }
 ```
 
-Módulos disponíveis: `Auth`, `Users`, `Condominiums`, `Units`, `Infractions`, `Ia`, `Pdf`.
+Para o status real do banco, use os endpoints de health (Terminus):
+
+- `GET /api/v1/health/live` — liveness (sempre 200 se o processo respondeu).
+- `GET /api/v1/health/ready` — readiness (200 com `database.status=up` quando o Postgres responde, 503 caso contrário).
+
+Módulos disponíveis: `Auth`, `Users`, `Condominiums`, `Units`, `Infractions`, `Ia`, `Pdf`, `Health`.
 
 ## Endpoints e exemplos de chamadas
 
