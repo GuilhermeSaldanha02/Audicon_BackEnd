@@ -10,6 +10,7 @@ jest.mock('pdfkit', () => {
             on: jest.fn((event: string, cb: EventCallback) => {
                 listeners[event] = cb;
             }),
+            pipe: jest.fn(() => instance),
             fontSize: jest.fn(() => instance),
             text: jest.fn(() => instance),
             moveDown: jest.fn(() => instance),
@@ -73,6 +74,54 @@ describe('PdfService', () => {
         expect(inst.text).toHaveBeenCalled();
         expect(inst.moveDown).toHaveBeenCalled();
         expect(inst.end).toHaveBeenCalledTimes(1);
+    });
+    it('streamInfractionReport faz pipe no sink, escreve cabeçalho e conclui', async () => {
+        const condominium: any = {
+            id: 5,
+            name: 'Condo Alpha',
+            cnpj: '00.000.000/0001-00',
+            address: 'Rua A, 1',
+        };
+        const infractions: any[] = [
+            {
+                id: 1,
+                description: 'Barulho',
+                occurrenceDate: new Date('2026-01-01T10:00:00Z'),
+                unit: { identifier: 'A101', ownerName: 'John' },
+                formalDescription: 'Formal text',
+                suggestedPenalty: 'Warning',
+            },
+            {
+                id: 2,
+                description: 'Outra',
+                occurrenceDate: new Date('2026-02-01T10:00:00Z'),
+                unit: { identifier: 'B202', ownerName: 'Jane' },
+            },
+        ];
+        const sink: any = { write: jest.fn(), end: jest.fn(), on: jest.fn() };
+        await service.streamInfractionReport(sink, condominium, infractions);
+        const PDFCtor = getPDFMockCtor();
+        const inst = PDFCtor.__getInstance();
+        expect(inst.pipe).toHaveBeenCalledWith(sink);
+        expect(inst.text).toHaveBeenCalled();
+        expect(inst.end).toHaveBeenCalledTimes(1);
+    });
+    it('streamInfractionReport com lista vazia escreve mensagem de zero infrações', async () => {
+        const condominium: any = {
+            id: 5,
+            name: 'Condo Alpha',
+            cnpj: '00.000.000/0001-00',
+            address: 'Rua A, 1',
+        };
+        const sink: any = { write: jest.fn(), end: jest.fn(), on: jest.fn() };
+        await service.streamInfractionReport(sink, condominium, []);
+        const PDFCtor = getPDFMockCtor();
+        const inst = PDFCtor.__getInstance();
+        expect(inst.pipe).toHaveBeenCalledWith(sink);
+        const allTextCalls = (inst.text as jest.Mock).mock.calls
+            .map((c) => c[0])
+            .join(' ');
+        expect(allTextCalls).toContain('No infractions found');
     });
     it('propaga erro quando o PDF emite erro', async () => {
         const infraction: any = {
