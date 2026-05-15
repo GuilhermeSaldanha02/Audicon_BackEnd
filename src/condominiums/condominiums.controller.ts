@@ -10,7 +10,13 @@ import {
   ParseIntPipe,
   Request,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiParam,
+} from '@nestjs/swagger';
 import { CondominiumsService } from './condominiums.service';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
@@ -31,7 +37,10 @@ export class CondominiumsController {
   @ApiResponse({ status: 201, description: 'Condomínio criado' })
   @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
   @Post()
-  create(@Request() req: any, @Body() createCondominiumDto: CreateCondominiumDto) {
+  create(
+    @Request() req: any,
+    @Body() createCondominiumDto: CreateCondominiumDto,
+  ) {
     return this.condominiumsService.create(createCondominiumDto, req.user.id);
   }
 
@@ -81,7 +90,10 @@ export class CondominiumsController {
 
   @ApiOperation({ summary: 'Adicionar membro ao condomínio (requer ADMIN)' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 201, description: 'Membro adicionado ou papel atualizado' })
+  @ApiResponse({
+    status: 201,
+    description: 'Membro adicionado ou papel atualizado',
+  })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)

@@ -36,11 +36,17 @@ describe('ReportsController', () => {
     pdf.streamInfractionReport.mockResolvedValue(undefined);
     const res: any = { set: jest.fn() };
     await controller.getReport(5, { from: '2026-01-01' } as any, res);
-    expect(infractions.findForReport).toHaveBeenCalledWith(5, '2026-01-01', undefined);
+    expect(infractions.findForReport).toHaveBeenCalledWith(
+      5,
+      '2026-01-01',
+      undefined,
+    );
     expect(res.set).toHaveBeenCalledWith(
       expect.objectContaining({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': expect.stringContaining('attachment; filename="infractions-5-'),
+        'Content-Disposition': expect.stringContaining(
+          'attachment; filename="infractions-5-',
+        ),
       }),
     );
     expect(pdf.streamInfractionReport).toHaveBeenCalledWith(res, condo, list);

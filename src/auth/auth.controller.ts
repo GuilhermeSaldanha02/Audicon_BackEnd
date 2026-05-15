@@ -7,7 +7,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -28,7 +34,10 @@ export class AuthController {
       required: ['email', 'password'],
     },
   })
-  @ApiResponse({ status: 200, description: 'Login bem-sucedido, retorna access_token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Login bem-sucedido, retorna access_token',
+  })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
   @UseGuards(LocalAuthGuard)
   @Post('login')

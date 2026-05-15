@@ -31,7 +31,9 @@ describe('CondominiumsController', () => {
       .compile();
 
     controller = module.get<CondominiumsController>(CondominiumsController);
-    service = module.get(CondominiumsService) as jest.Mocked<CondominiumsService>;
+    service = module.get(
+      CondominiumsService,
+    ) as jest.Mocked<CondominiumsService>;
   });
 
   it('should be defined', () => {
@@ -39,7 +41,11 @@ describe('CondominiumsController', () => {
   });
 
   it('create deve delegar para o service com dto e userId', async () => {
-    const dto: any = { name: 'Condo A', cnpj: '00.000.000/0000-00', address: 'Rua 1' };
+    const dto: any = {
+      name: 'Condo A',
+      cnpj: '00.000.000/0000-00',
+      address: 'Rua 1',
+    };
     const created = { id: 1, ...dto } as any;
     service.create.mockResolvedValue(created);
     const result = await controller.create(mockReq, dto);
@@ -83,7 +89,12 @@ describe('CondominiumsController', () => {
 
   it('addMember deve delegar para o service', async () => {
     const dto: any = { email: 'novo@condo.com', role: 'MANAGER' };
-    const membership = { id: 1, condominiumId: 3, userId: 5, role: 'MANAGER' } as any;
+    const membership = {
+      id: 1,
+      condominiumId: 3,
+      userId: 5,
+      role: 'MANAGER',
+    } as any;
     service.addMember.mockResolvedValue(membership);
     const result = await controller.addMember(3, dto);
     expect(result).toEqual(membership);
