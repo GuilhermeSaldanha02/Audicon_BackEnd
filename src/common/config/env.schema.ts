@@ -20,6 +20,11 @@ export const envValidationSchema = Joi.object({
   GEMINI_API_KEY: Joi.string().optional(),
   GEMINI_API_ENDPOINT: Joi.string().uri().optional(),
   GEMINI_MODEL: Joi.string().optional(),
+  GEMINI_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(60000)
+    .default(15000),
 }).unknown(true);
 
 export const envValidationOptions = {
