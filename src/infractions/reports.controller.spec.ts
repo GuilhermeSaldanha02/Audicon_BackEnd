@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ReportsController } from './reports.controller';
 import { InfractionsService } from './infractions.service';
 import { PdfService } from '../pdf/pdf.service';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 describe('ReportsController', () => {
   let controller: ReportsController;
@@ -17,7 +18,11 @@ describe('ReportsController', () => {
         { provide: InfractionsService, useValue: infractions },
         { provide: PdfService, useValue: pdf },
       ],
-    }).compile();
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
     controller = module.get<ReportsController>(ReportsController);
   });
 
@@ -31,17 +36,11 @@ describe('ReportsController', () => {
     pdf.streamInfractionReport.mockResolvedValue(undefined);
     const res: any = { set: jest.fn() };
     await controller.getReport(5, { from: '2026-01-01' } as any, res);
-    expect(infractions.findForReport).toHaveBeenCalledWith(
-      5,
-      '2026-01-01',
-      undefined,
-    );
+    expect(infractions.findForReport).toHaveBeenCalledWith(5, '2026-01-01', undefined);
     expect(res.set).toHaveBeenCalledWith(
       expect.objectContaining({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': expect.stringContaining(
-          'attachment; filename="infractions-5-',
-        ),
+        'Content-Disposition': expect.stringContaining('attachment; filename="infractions-5-'),
       }),
     );
     expect(pdf.streamInfractionReport).toHaveBeenCalledWith(res, condo, list);
