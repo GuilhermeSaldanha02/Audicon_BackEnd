@@ -1,6 +1,6 @@
 # SDD — Audicon API
 **Spec-Driven Development Document**
-Versão: 1.0 · Última atualização: 2026-05-15
+Versão: 1.1 · Última atualização: 2026-05-15
 
 ---
 
@@ -31,7 +31,7 @@ Estrutura:
 
 | Camada | Tecnologia | Observação |
 |---|---|---|
-| Runtime | Node.js | Versão a ser fixada em `.nvmrc` se ainda não existir |
+| Runtime | Node.js | **≥ 20** (fixado em `.nvmrc` e `package.json#engines`). Node 18 não suportado: `@nestjs/typeorm` v11 usa `crypto.randomUUID()` global ausente nessa versão. |
 | Framework | NestJS | Arquitetura modular padrão |
 | Linguagem | TypeScript | `strict: true` esperado |
 | Banco | PostgreSQL | |
@@ -146,7 +146,7 @@ Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos parale
 
 **Critérios de aceitação:**
 - Substituir todos os fallbacks por validação estrita: se variável de ambiente faltar, lançar erro com nome da variável faltante.
-- Variáveis envolvidas (confirmar na Discovery): `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+- Variáveis envolvidas (confirmadas na Discovery T-00): `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`.
 - Criar utilitário `requireEnv(name: string): string` em `src/common/config/` para reuso.
 - Atualizar `.env.example` listando todas as variáveis exigidas com comentário.
 
@@ -159,7 +159,7 @@ Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos parale
 
 **Critérios de aceitação:**
 - Usar `Joi` (já comum em Nest) ou `zod` para validar `process.env` no `ConfigModule.forRoot({ validationSchema })`.
-- Schema cobre: variáveis de DB, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGINS`, `GEMINI_API_KEY` (ou nome real, a confirmar na Discovery), `PORT`.
+- Schema cobre: variáveis de DB (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`), `JWT_SECRET`, `JWT_EXPIRATION` (confirmado na Discovery T-00 — código real usa `JWT_EXPIRATION`, não `JWT_EXPIRES_IN`), `CORS_ORIGINS`, `GEMINI_API_KEY` (opcional), `GEMINI_API_ENDPOINT`, `GEMINI_MODEL`, `NODE_ENV`, `PORT`.
 - Teste unitário do schema com casos válido / inválido.
 
 **DoD:** `npm run start:dev` falha com `.env` incompleto e mensagem indicando a variável faltante.
@@ -236,4 +236,18 @@ Uma tarefa só é considerada **Done** quando:
 - **Discovery:** fase de leitura/inventário sem modificação de código.
 - **Fonte-relatório:** relatório técnico inicial do projeto (anexado à conversa de origem deste SDD).
 
-**Mudanças neste documento:** seguem PR, com bump de versão no topo e changelog ao final (criar quando houver primeira alteração).
+**Mudanças neste documento:** seguem PR, com bump de versão no topo e changelog ao final.
+
+---
+
+## Changelog
+
+### 1.1 — 2026-05-15
+
+- §2: Node fixado em ≥ 20 (Node 18 não suporta `crypto` global usado por `@nestjs/typeorm` v11).
+- §5 T-02: nomes de variáveis confirmados na Discovery — `DB_USERNAME` (não `DB_USER`) e `DB_DATABASE` (não `DB_NAME`).
+- §5 T-03: nome correto da variável de expiração é `JWT_EXPIRATION` (não `JWT_EXPIRES_IN`); lista de variáveis cobertas expandida com `NODE_ENV`, `GEMINI_API_ENDPOINT`, `GEMINI_MODEL`.
+
+### 1.0 — 2026-05-15
+
+- Versão inicial.
