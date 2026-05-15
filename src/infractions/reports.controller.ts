@@ -7,6 +7,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -16,6 +17,8 @@ import { InfractionsService } from './infractions.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { ReportQueryDto } from './dto/report-query.dto';
 
+@ApiTags('Reports')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.MANAGER)
 @Controller('condominiums/:condominiumId/infractions')
@@ -25,6 +28,10 @@ export class ReportsController {
     private readonly pdfService: PdfService,
   ) {}
 
+  @ApiOperation({ summary: 'Download do relatório PDF de infrações do condomínio (ADMIN ou MANAGER)' })
+  @ApiParam({ name: 'condominiumId', type: Number })
+  @ApiResponse({ status: 200, description: 'PDF gerado', content: { 'application/pdf': {} } })
+  @ApiResponse({ status: 403, description: 'Sem permissão (requer ADMIN ou MANAGER)' })
   @Get('report.pdf')
   async getReport(
     @Param('condominiumId', ParseIntPipe) condominiumId: number,
