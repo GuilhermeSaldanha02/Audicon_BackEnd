@@ -1,122 +1,229 @@
-// Usa fetch nativo do Node 18+
+#!/usr/bin/env node
+// Smoke E2E runner — exercises the real HTTP surface against a running stack.
+//
+// Usage:
+//   docker compose up -d                   # or `npm run start:dev` against a local Postgres
+//   docker compose exec api npm run migration:run
+//   node scripts/e2e-runner.mjs            # or `npm run smoke:e2e`
+//
+// Honors env var BASE_URL (default http://127.0.0.1:3000/api/v1).
+// Exits 0 on success, 1 on first failure with the failing step printed.
 
-const API_BASE = 'http://127.0.0.1:3000/api/v1';
+const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:3000/api/v1';
 const ts = Date.now();
 const email = `qa_user_${ts}@example.com`;
-const senha = 'S3nh@Segura456';
-const nome = `QA User ${ts}`;
+const password = 'S3nh@Segura456';
+const userName = `QA User ${ts}`;
+const cnpj = String(10000000000000 + (ts % 89999999999999));
 
-async function req(method, url, body, token) {
+let stepNo = 0;
+function logStep(label) {
+  stepNo += 1;
+  process.stdout.write(`\n[${String(stepNo).padStart(2, '0')}] ${label}\n`);
+}
+
+function logOk(detail) {
+  process.stdout.write(`     OK  ${detail}\n`);
+}
+
+async function http(method, url, { body, token, accept } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (accept) headers.Accept = accept;
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const ct = res.headers.get('content-type') ?? '';
   if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    err.response = data;
+    const raw = await res.text();
+    const err = new Error(`HTTP ${res.status} on ${method} ${url}`);
+    err.status = res.status;
+    err.body = raw;
     throw err;
   }
-  return data;
+  if (ct.includes('application/pdf')) {
+    return {
+      kind: 'pdf',
+      buffer: Buffer.from(await res.arrayBuffer()),
+      headers: Object.fromEntries(res.headers.entries()),
+    };
+  }
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+  return { kind: 'json', body: json, headers: Object.fromEntries(res.headers.entries()) };
+}
+
+function expect(cond, message) {
+  if (!cond) {
+    const err = new Error(`Assertion failed: ${message}`);
+    err.assertion = true;
+    throw err;
+  }
 }
 
 async function main() {
-  // Ping inicial para garantir disponibilidade
-  const ping = await req('GET', `${API_BASE}/`);
-  console.log('Ping resp:', JSON.stringify(ping, null, 2));
-  console.log('Criando usuário:', email);
-  const cu = await req('POST', `${API_BASE}/users`, { nome, email, senha });
-  console.log('User resp:', JSON.stringify(cu, null, 2));
+  process.stdout.write(`Audicon smoke E2E\nBase URL: ${BASE_URL}\n`);
 
-  console.log('Fazendo login...');
-  const login = await req('POST', `${API_BASE}/auth/login`, { email, senha });
-  console.log('Login resp:', JSON.stringify(login, null, 2));
-  const token = login?.data?.access_token;
-  if (!token) throw new Error('Falha no login: sem token');
-  console.log('Token:', token.substring(0, 12) + '...');
+  logStep('Health: liveness');
+  let r = await http('GET', `${BASE_URL}/health/live`);
+  expect(r.body.data?.status === 'ok', 'health/live should return data.status="ok"');
+  logOk('status ok');
 
-  console.log('Consultando perfil protegido...');
-  const profile = await req('GET', `${API_BASE}/auth/profile`, undefined, token);
-  console.log('Profile resp:', JSON.stringify(profile, null, 2));
+  logStep('Health: readiness');
+  r = await http('GET', `${BASE_URL}/health/ready`);
+  expect(
+    r.body.data?.info?.database?.status === 'up',
+    'health/ready should report database.status="up"',
+  );
+  logOk('database up');
 
-  console.log('Criando condomínio...');
-  const cnpj = String(10000000000000 + (ts % 89999999999999));
-  const cond = await req('POST', `${API_BASE}/condominios`, { nome: `Condomínio QA ${ts}`, cnpj, endereco: 'Rua Teste, 123' }, token);
-  console.log('Condomínio resp:', JSON.stringify(cond, null, 2));
-  const condId = cond?.data?.id;
-  if (!condId) throw new Error('Falha ao criar condomínio');
-  console.log('Condomínio:', condId);
+  logStep('Users: create');
+  r = await http('POST', `${BASE_URL}/users`, {
+    body: { nome: userName, email, senha: password },
+  });
+  expect(r.body.data?.email === email, 'created user should echo email');
+  expect(r.body.data?.senha === undefined, 'response must not leak senha');
+  logOk(`user ${email}`);
 
-  console.log('Listando condomínios...');
-  const condList = await req('GET', `${API_BASE}/condominios`, undefined, token);
-  console.log('Condomínios resp:', JSON.stringify(condList, null, 2));
+  logStep('Auth: login');
+  r = await http('POST', `${BASE_URL}/auth/login`, {
+    body: { email, password },
+  });
+  const token = r.body.data?.access_token;
+  expect(typeof token === 'string' && token.length > 20, 'login should return access_token');
+  logOk(`token ${token.slice(0, 16)}…`);
 
-  console.log('Buscando condomínio por ID...');
-  const condGet = await req('GET', `${API_BASE}/condominios/${condId}`, undefined, token);
-  console.log('Condomínio get resp:', JSON.stringify(condGet, null, 2));
+  logStep('Auth: profile (JWT)');
+  r = await http('GET', `${BASE_URL}/auth/profile`, { token });
+  expect(r.body.data?.email === email, 'profile should match created user');
+  logOk(`profile email=${r.body.data.email}`);
 
-  console.log('Atualizando condomínio...');
-  const condUpd = await req('PATCH', `${API_BASE}/condominios/${condId}`, { endereco: 'Av. Atualizada, 456' }, token);
-  console.log('Condomínio upd resp:', JSON.stringify(condUpd, null, 2));
+  logStep('Condominiums: create');
+  r = await http('POST', `${BASE_URL}/condominiums`, {
+    token,
+    body: { name: `Condo QA ${ts}`, cnpj, address: 'Rua Teste, 123' },
+  });
+  const condoId = r.body.data?.id;
+  expect(typeof condoId === 'number', 'created condominium should have numeric id');
+  logOk(`condo #${condoId}`);
 
-  console.log('Criando unidade...');
-  const uni = await req('POST', `${API_BASE}/condominios/${condId}/unidades`, { identificador: `Unidade QA ${ts}`, proprietario_nome: 'Fulano de Tal' }, token);
-  console.log('Unidade resp:', JSON.stringify(uni, null, 2));
-  const uniId = uni?.data?.id;
-  if (!uniId) throw new Error('Falha ao criar unidade');
-  console.log('Unidade:', uniId);
+  logStep('Condominiums: list');
+  r = await http('GET', `${BASE_URL}/condominiums`, { token });
+  expect(Array.isArray(r.body.data), 'list should return an array');
+  expect(r.body.data.some((c) => c.id === condoId), 'list should contain the created condo');
+  logOk(`${r.body.data.length} found`);
 
-  console.log('Listando unidades do condomínio...');
-  const uniList = await req('GET', `${API_BASE}/condominios/${condId}/unidades`, undefined, token);
-  console.log('Unidades resp:', JSON.stringify(uniList, null, 2));
+  logStep('Condominiums: get by id');
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}`, { token });
+  expect(r.body.data?.cnpj === cnpj, 'cnpj should round-trip');
+  logOk(`cnpj=${r.body.data.cnpj}`);
 
-  console.log('Buscando unidade por ID...');
-  const uniGet = await req('GET', `${API_BASE}/condominios/${condId}/unidades/${uniId}`, undefined, token);
-  console.log('Unidade get resp:', JSON.stringify(uniGet, null, 2));
+  logStep('Condominiums: patch address');
+  r = await http('PATCH', `${BASE_URL}/condominiums/${condoId}`, {
+    token,
+    body: { address: 'Av. Atualizada, 456' },
+  });
+  expect(r.body.data?.address === 'Av. Atualizada, 456', 'address should update');
+  logOk('address updated');
 
-  console.log('Atualizando unidade...');
-  const uniUpd = await req('PATCH', `${API_BASE}/condominios/${condId}/unidades/${uniId}`, { proprietario_nome: 'Ciclano da Silva' }, token);
-  console.log('Unidade upd resp:', JSON.stringify(uniUpd, null, 2));
+  logStep('Units: create');
+  r = await http('POST', `${BASE_URL}/condominiums/${condoId}/units`, {
+    token,
+    body: { identifier: `A-${ts}`, ownerName: 'Fulano de Tal' },
+  });
+  const unitId = r.body.data?.id;
+  expect(typeof unitId === 'number', 'created unit should have numeric id');
+  logOk(`unit #${unitId}`);
 
-  console.log('Criando infração...');
-  const inf = await req('POST', `${API_BASE}/unidades/${uniId}/infracoes`, { descricao: 'Morador realiza festas com som alto após 22h, prejudicando descanso dos vizinhos' }, token);
-  console.log('Infração resp:', JSON.stringify(inf, null, 2));
-  const infId = inf?.data?.id;
-  if (!infId) throw new Error('Falha ao criar infração');
-  console.log('Infração:', infId);
+  logStep('Units: list under condominium');
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units`, { token });
+  expect(Array.isArray(r.body.data) && r.body.data.length >= 1, 'units list should contain at least the new unit');
+  logOk(`${r.body.data.length} unit(s)`);
 
-  console.log('Listando infrações da unidade...');
-  const infList = await req('GET', `${API_BASE}/unidades/${uniId}/infracoes`, undefined, token);
-  console.log('Infrações resp:', JSON.stringify(infList, null, 2));
+  logStep('Units: get by id');
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token });
+  expect(r.body.data?.identifier === `A-${ts}`, 'identifier should round-trip');
+  logOk(`identifier=${r.body.data.identifier}`);
 
-  console.log('Buscando infração por ID...');
-  const infGet = await req('GET', `${API_BASE}/unidades/${uniId}/infracoes/${infId}`, undefined, token);
-  console.log('Infração get resp:', JSON.stringify(infGet, null, 2));
+  logStep('Units: patch ownerName');
+  r = await http('PATCH', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, {
+    token,
+    body: { ownerName: 'Ciclano da Silva' },
+  });
+  expect(r.body.data?.ownerName === 'Ciclano da Silva', 'ownerName should update');
+  logOk('ownerName updated');
 
-  console.log('Atualizando infração...');
-  const infUpd = await req('PATCH', `${API_BASE}/unidades/${uniId}/infracoes/${infId}`, { descricao: 'Atualização: relato complementar sobre ocorrências anteriores.' }, token);
-  console.log('Infração upd resp:', JSON.stringify(infUpd, null, 2));
+  logStep('Infractions: create');
+  r = await http('POST', `${BASE_URL}/infractions`, {
+    token,
+    body: {
+      description: 'Morador toca som alto após 22h, perturbando vizinhos.',
+      unitId,
+    },
+  });
+  const infractionId = r.body.data?.id;
+  expect(typeof infractionId === 'number', 'created infraction should have numeric id');
+  expect(r.body.data?.status === 'pending', 'new infraction should be pending');
+  logOk(`infraction #${infractionId}`);
 
-  console.log('Chamando análise...');
-  const analysis = await req('POST', `${API_BASE}/unidades/${uniId}/infracoes/${infId}/analisar`, {}, token);
-  console.log('Análise resp:', JSON.stringify(analysis, null, 2));
+  logStep('Infractions: list by unit');
+  r = await http('GET', `${BASE_URL}/infractions?unitId=${unitId}`, { token });
+  expect(Array.isArray(r.body.data) && r.body.data.length >= 1, 'should list at least the new infraction');
+  logOk(`${r.body.data.length} infraction(s)`);
 
-  console.log('Removendo infração...');
-  const infDel = await req('DELETE', `${API_BASE}/unidades/${uniId}/infracoes/${infId}`, undefined, token);
-  console.log('Infração del resp:', JSON.stringify(infDel, null, 2));
+  logStep('Infractions: analyze (AI, falls back to mock without GEMINI_API_KEY)');
+  r = await http('POST', `${BASE_URL}/infractions/${infractionId}/analyze`, { token });
+  expect(r.body.data?.status === 'analyzed', 'status should flip to analyzed');
+  expect(typeof r.body.data?.formalDescription === 'string' && r.body.data.formalDescription.length > 0,
+    'formalDescription should be populated');
+  logOk(`penalty=${r.body.data?.suggestedPenalty}`);
 
-  console.log('Removendo unidade...');
-  const uniDel = await req('DELETE', `${API_BASE}/condominios/${condId}/unidades/${uniId}`, undefined, token);
-  console.log('Unidade del resp:', JSON.stringify(uniDel, null, 2));
+  logStep('Infractions: download single PDF');
+  r = await http('GET', `${BASE_URL}/infractions/${infractionId}/document`, {
+    token,
+    accept: 'application/pdf',
+  });
+  expect(r.kind === 'pdf', 'response should be PDF');
+  expect(r.buffer.slice(0, 5).toString() === '%PDF-', 'should start with %PDF-');
+  expect(r.headers['content-disposition']?.includes('attachment'), 'should be attachment');
+  logOk(`PDF ${r.buffer.length} bytes`);
 
-  console.log('Removendo condomínio...');
-  const condDel = await req('DELETE', `${API_BASE}/condominios/${condId}`, undefined, token);
-  console.log('Condomínio del resp:', JSON.stringify(condDel, null, 2));
+  logStep('Reports: download consolidated PDF for condominium');
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/infractions/report.pdf`, {
+    token,
+    accept: 'application/pdf',
+  });
+  expect(r.kind === 'pdf', 'response should be PDF');
+  expect(r.buffer.slice(0, 5).toString() === '%PDF-', 'should start with %PDF-');
+  expect(r.headers['content-disposition']?.includes(`infractions-${condoId}-`),
+    'filename should encode condominium id');
+  logOk(`report PDF ${r.buffer.length} bytes`);
+
+  logStep('Cleanup: delete infraction');
+  await http('DELETE', `${BASE_URL}/infractions/${infractionId}`, { token });
+  logOk(`infraction #${infractionId} deleted`);
+
+  logStep('Cleanup: delete unit');
+  await http('DELETE', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token });
+  logOk(`unit #${unitId} deleted`);
+
+  logStep('Cleanup: delete condominium');
+  await http('DELETE', `${BASE_URL}/condominiums/${condoId}`, { token });
+  logOk(`condo #${condoId} deleted`);
+
+  process.stdout.write(`\nAll ${stepNo} steps passed.\n`);
 }
 
-main().catch((e) => {
-  console.error('E2E error:', e.message);
-  if (e.response) console.error('Response:', JSON.stringify(e.response, null, 2));
+main().catch((err) => {
+  process.stderr.write(`\nFAILED at step ${stepNo}: ${err.message}\n`);
+  if (err.body) process.stderr.write(`Response: ${err.body}\n`);
+  if (err.stack && !err.assertion) process.stderr.write(`${err.stack}\n`);
   process.exit(1);
 });
