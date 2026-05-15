@@ -5,16 +5,19 @@ import { Condominium } from './condominiums/entities/condominium.entity';
 import { Unit } from './units/entities/unit.entity';
 import { Infraction } from './infractions/entities/infraction.entity';
 import { User } from './users/entities/user.entity';
+import { requireEnv, requireEnvInt } from './common/config/require-env';
+
 const appDataSourceOptions = {
-    type: 'postgres' as const,
-    host: process.env.DB_HOST || 'localhost',
-    port: +(process.env.DB_PORT || 5432),
-    username: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_DATABASE || 'audicon',
-    entities: [Condominium, Unit, Infraction, User],
-    migrations: ['src/migrations/*.ts'],
-    synchronize: false,
-    logging: false,
+  type: 'postgres' as const,
+  host: requireEnv('DB_HOST'),
+  port: requireEnvInt('DB_PORT'),
+  username: requireEnv('DB_USERNAME'),
+  password: requireEnv('DB_PASSWORD'),
+  database: requireEnv('DB_DATABASE'),
+  entities: [Condominium, Unit, Infraction, User],
+  migrations: ['src/migrations/*.ts'],
+  synchronize: false,
+  logging: false,
 };
+
 export const AppDataSource = new DataSource(appDataSourceOptions);
