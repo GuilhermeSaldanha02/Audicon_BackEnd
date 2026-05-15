@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppController } from './../src/app.controller';
 import { AppService } from './../src/app.service';
 import { setupApp } from './../src/setup-app';
