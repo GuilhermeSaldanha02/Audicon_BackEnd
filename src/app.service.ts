@@ -7,7 +7,6 @@ export class AppService {
     return {
       status: 'online',
       environment: this.configService.get('NODE_ENV') || 'development',
-      database: 'connected',
       timestamp: new Date().toISOString(),
     };
   }

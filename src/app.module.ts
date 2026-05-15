@@ -10,6 +10,7 @@ import { UnitsModule } from './units/units.module';
 import { InfractionsModule } from './infractions/infractions.module';
 import { IaModule } from './ia/ia.module';
 import { PdfModule } from './pdf/pdf.module';
+import { HealthModule } from './health/health.module';
 import {
   envValidationOptions,
   envValidationSchema,
@@ -43,6 +44,7 @@ import {
     InfractionsModule,
     IaModule,
     PdfModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
