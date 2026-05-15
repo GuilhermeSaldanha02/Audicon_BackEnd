@@ -1,7 +1,4 @@
-import {
-  _resetPromptCacheForTests,
-  loadPromptTemplate,
-} from './load-prompt';
+import { _resetPromptCacheForTests, loadPromptTemplate } from './load-prompt';
 
 describe('loadPromptTemplate', () => {
   beforeEach(() => _resetPromptCacheForTests());

@@ -14,9 +14,10 @@ describe('parseCorsOrigins', () => {
   });
 
   it('trims whitespace around each origin', () => {
-    expect(
-      parseCorsOrigins('  http://a.test  ,   http://b.test   '),
-    ).toEqual(['http://a.test', 'http://b.test']);
+    expect(parseCorsOrigins('  http://a.test  ,   http://b.test   ')).toEqual([
+      'http://a.test',
+      'http://b.test',
+    ]);
   });
 
   it('ignores empty segments from extra commas', () => {

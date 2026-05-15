@@ -5,10 +5,9 @@ import { UnitsService } from './units.service';
 import { Unit } from './entities/unit.entity';
 import { CondominiumsModule } from 'src/condominiums/condominiums.module';
 @Module({
-    imports: [TypeOrmModule.forFeature([Unit]), CondominiumsModule],
-    controllers: [UnitsController],
-    providers: [UnitsService],
-    exports: [UnitsService],
+  imports: [TypeOrmModule.forFeature([Unit]), CondominiumsModule],
+  controllers: [UnitsController],
+  providers: [UnitsService],
+  exports: [UnitsService],
 })
-export class UnitsModule {
-}
+export class UnitsModule {}

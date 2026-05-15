@@ -23,12 +23,10 @@ describe('Reports (e2e)', () => {
   beforeAll(async () => {
     infractionsService = { findForReport: jest.fn() };
     pdfService = {
-      streamInfractionReport: jest
-        .fn()
-        .mockImplementation(async (res: any) => {
-          res.write(Buffer.from('%PDF-1.4 fake'));
-          res.end();
-        }),
+      streamInfractionReport: jest.fn().mockImplementation(async (res: any) => {
+        res.write(Buffer.from('%PDF-1.4 fake'));
+        res.end();
+      }),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

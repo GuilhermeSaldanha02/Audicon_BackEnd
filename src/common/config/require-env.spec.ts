@@ -1,8 +1,4 @@
-import {
-  MissingEnvVarError,
-  requireEnv,
-  requireEnvInt,
-} from './require-env';
+import { MissingEnvVarError, requireEnv, requireEnvInt } from './require-env';
 
 describe('requireEnv', () => {
   const ORIGINAL_ENV = process.env;
