@@ -5,13 +5,16 @@ import { Infraction, InfractionStatus } from './entities/infraction.entity';
 import { UnitsService } from '../units/units.service';
 import { IaService } from '../ia/ia.service';
 import { PdfService } from '../pdf/pdf.service';
-import { NotFoundException } from '@nestjs/common';
+import { CondominiumsService } from '../condominiums/condominiums.service';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 describe('InfractionsService', () => {
     let service: InfractionsService;
     let repo: any;
     let units: any;
     let ia: any;
     let pdf: any;
+    let condos: any;
+    let qb: any;
     const mockInfraction: Infraction = {
         id: 1,
         description: 'Desc',
@@ -29,6 +32,14 @@ describe('InfractionsService', () => {
         } as any,
     };
     beforeEach(async () => {
+        qb = {
+            leftJoinAndSelect: jest.fn().mockReturnThis(),
+            leftJoin: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue([]),
+        };
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 InfractionsService,
@@ -41,6 +52,7 @@ describe('InfractionsService', () => {
                         findOne: jest.fn(),
                         update: jest.fn(),
                         delete: jest.fn(),
+                        createQueryBuilder: jest.fn(() => qb),
                     },
                 },
                 {
@@ -59,6 +71,13 @@ describe('InfractionsService', () => {
                     provide: PdfService,
                     useValue: {
                         gerarDocumentoInfracao: jest.fn(),
+                        streamInfractionReport: jest.fn(),
+                    },
+                },
+                {
+                    provide: CondominiumsService,
+                    useValue: {
+                        findOne: jest.fn(),
                     },
                 },
             ],
@@ -68,6 +87,7 @@ describe('InfractionsService', () => {
         units = module.get(UnitsService);
         ia = module.get(IaService);
         pdf = module.get(PdfService);
+        condos = module.get(CondominiumsService);
     });
     it('should be defined', () => {
         expect(service).toBeDefined();
@@ -193,6 +213,46 @@ describe('InfractionsService', () => {
                 formalDescription: undefined,
             });
             await expect(service.generateDocument(1)).rejects.toThrow(NotFoundException);
+        });
+    });
+    describe('findForReport', () => {
+        const condo = { id: 5, name: 'Condo Alpha', cnpj: '00.000.000/0001-00', address: 'Rua A, 1' } as any;
+        it('retorna condomínio + infrações sem filtros', async () => {
+            (condos.findOne as jest.Mock).mockResolvedValue(condo);
+            qb.getMany.mockResolvedValue([mockInfraction]);
+            const result = await service.findForReport(5);
+            expect(condos.findOne).toHaveBeenCalledWith(5);
+            expect(qb.andWhere).not.toHaveBeenCalled();
+            expect(qb.orderBy).toHaveBeenCalledWith('infraction.occurrenceDate', 'ASC');
+            expect(result.condominium).toEqual(condo);
+            expect(result.infractions).toEqual([mockInfraction]);
+        });
+        it('aplica filtros from e to', async () => {
+            (condos.findOne as jest.Mock).mockResolvedValue(condo);
+            qb.getMany.mockResolvedValue([]);
+            await service.findForReport(5, '2026-01-01', '2026-12-31');
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                'infraction.occurrenceDate >= :from',
+                { from: '2026-01-01' },
+            );
+            expect(qb.andWhere).toHaveBeenCalledWith(
+                'infraction.occurrenceDate <= :to',
+                { to: '2026-12-31' },
+            );
+        });
+        it('lança BadRequest quando from > to', async () => {
+            (condos.findOne as jest.Mock).mockResolvedValue(condo);
+            await expect(
+                service.findForReport(5, '2026-12-31', '2026-01-01'),
+            ).rejects.toThrow(BadRequestException);
+        });
+        it('propaga 404 quando condomínio não existe', async () => {
+            (condos.findOne as jest.Mock).mockRejectedValue(
+                new NotFoundException(),
+            );
+            await expect(service.findForReport(999)).rejects.toThrow(
+                NotFoundException,
+            );
         });
     });
 });
