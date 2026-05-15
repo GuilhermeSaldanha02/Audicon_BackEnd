@@ -11,16 +11,24 @@ import { InfractionsModule } from './infractions/infractions.module';
 import { IaModule } from './ia/ia.module';
 import { PdfModule } from './pdf/pdf.module';
 import { HealthModule } from './health/health.module';
+import { LoggerModule } from 'nestjs-pino';
 import {
   envValidationOptions,
   envValidationSchema,
 } from './common/config/env.schema';
+import { buildLoggerConfig } from './common/logger/logger.config';
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: envValidationSchema,
       validationOptions: envValidationOptions,
+    }),
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) =>
+        buildLoggerConfig(configService),
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
