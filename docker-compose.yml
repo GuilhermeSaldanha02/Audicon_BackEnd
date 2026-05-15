@@ -12,13 +12,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 10s
       timeout: 5s
       retries: 5
 
   api:
-    build: .
+    build:
+      context: .
+      target: development
     container_name: audicon_api
     depends_on:
       db:
@@ -29,10 +31,20 @@ services:
       - .env
     environment:
       - CHOKIDAR_USEPOLLING=true
+      - DB_HOST=db
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    command: sh -c "npm ci && npm run start:dev"
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://localhost:3000/api/v1/health/live || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     develop:
       watch:
         - path: Dockerfile
