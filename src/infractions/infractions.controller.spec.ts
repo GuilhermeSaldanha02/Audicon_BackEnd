@@ -43,17 +43,21 @@ describe('InfractionsController', () => {
     expect(service.create).toHaveBeenCalledWith(dto);
     expect(result).toEqual({ id: 1, ...dto });
   });
-  it('findAll sem unitId', async () => {
-    service.findAll.mockResolvedValue([{ id: 1 }]);
-    const result = await controller.findAll(undefined);
-    expect(service.findAll).toHaveBeenCalledWith(undefined);
-    expect(result).toEqual([{ id: 1 }]);
+  it('findAll sem unitId repassa paginação ao service', async () => {
+    const pagination = { page: 1, limit: 20 };
+    const paginated = { data: [{ id: 1 }], total: 1, page: 1, limit: 20 };
+    service.findAll.mockResolvedValue(paginated);
+    const result = await controller.findAll(pagination, undefined);
+    expect(service.findAll).toHaveBeenCalledWith(pagination, undefined);
+    expect(result).toEqual(paginated);
   });
-  it('findAll com unitId', async () => {
-    service.findAll.mockResolvedValue([{ id: 2 }]);
-    const result = await controller.findAll(10);
-    expect(service.findAll).toHaveBeenCalledWith(10);
-    expect(result).toEqual([{ id: 2 }]);
+  it('findAll com unitId repassa unitId ao service', async () => {
+    const pagination = { page: 1, limit: 20 };
+    const paginated = { data: [{ id: 2 }], total: 1, page: 1, limit: 20 };
+    service.findAll.mockResolvedValue(paginated);
+    const result = await controller.findAll(pagination, 10);
+    expect(service.findAll).toHaveBeenCalledWith(pagination, 10);
+    expect(result).toEqual(paginated);
   });
   it('findOne chama service.findOne', async () => {
     service.findOne.mockResolvedValue({ id: 3 });

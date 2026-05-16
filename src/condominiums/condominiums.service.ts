@@ -14,6 +14,8 @@ import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UsersService } from '../users/users.service';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { PaginatedResult } from '../common/dto/paginated-result.dto';
 
 @Injectable()
 export class CondominiumsService {
@@ -52,11 +54,18 @@ export class CondominiumsService {
     }
   }
 
-  async findAll(userId: number) {
-    return this.condominiumsRepository
+  async findAll(
+    userId: number,
+    pagination: PaginationDto,
+  ): Promise<PaginatedResult<Condominium>> {
+    const { page, limit } = pagination;
+    const [data, total] = await this.condominiumsRepository
       .createQueryBuilder('c')
       .innerJoin('c.memberships', 'uc', 'uc.userId = :userId', { userId })
-      .getMany();
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+    return { data, total, page, limit };
   }
 
   async findOne(id: number) {

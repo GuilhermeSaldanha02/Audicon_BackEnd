@@ -54,12 +54,18 @@ describe('CondominiumsController', () => {
     expect(service.create).toHaveBeenCalledWith(dto, mockReq.user.id);
   });
 
-  it('findAll deve delegar para o service com userId', async () => {
-    const list = [{ id: 1 }, { id: 2 }] as any[];
-    service.findAll.mockResolvedValue(list as any);
-    const result = await controller.findAll(mockReq);
-    expect(result).toEqual(list);
-    expect(service.findAll).toHaveBeenCalledWith(mockReq.user.id);
+  it('findAll deve delegar para o service com userId e paginação', async () => {
+    const pagination = { page: 1, limit: 20 };
+    const paginated = {
+      data: [{ id: 1 }],
+      total: 1,
+      page: 1,
+      limit: 20,
+    } as any;
+    service.findAll.mockResolvedValue(paginated);
+    const result = await controller.findAll(mockReq, pagination);
+    expect(result).toEqual(paginated);
+    expect(service.findAll).toHaveBeenCalledWith(mockReq.user.id, pagination);
   });
 
   it('findOne deve delegar para o service com id numérico', async () => {

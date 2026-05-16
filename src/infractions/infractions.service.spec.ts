@@ -38,7 +38,10 @@ describe('InfractionsService', () => {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -109,19 +112,43 @@ describe('InfractionsService', () => {
     });
   });
   describe('findAll', () => {
-    it('lista todas sem filtro', async () => {
-      (repo.find as jest.Mock).mockResolvedValue([mockInfraction]);
-      const result = await service.findAll();
-      expect(repo.find).toHaveBeenCalledWith({ relations: ['unit'] });
-      expect(result).toEqual([mockInfraction]);
+    const pagination = { page: 1, limit: 20 };
+
+    it('retorna resultado paginado sem filtro', async () => {
+      qb.getManyAndCount.mockResolvedValue([[mockInfraction], 1]);
+      const result = await service.findAll(pagination);
+      expect(result).toEqual({
+        data: [mockInfraction],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+      expect(qb.where).not.toHaveBeenCalled();
     });
-    it('lista por unidade, validando unidade existente', async () => {
+
+    it('filtra por unidade quando unitId fornecido', async () => {
       (units.findOne as jest.Mock).mockResolvedValue(mockInfraction.unit);
-      (repo.find as jest.Mock).mockResolvedValue([mockInfraction]);
-      const result = await service.findAll(10);
+      qb.getManyAndCount.mockResolvedValue([[mockInfraction], 1]);
+      const result = await service.findAll(pagination, 10);
       expect(units.findOne).toHaveBeenCalledWith(10);
-      expect(repo.find).toHaveBeenCalledWith({ where: { unit: { id: 10 } } });
-      expect(result).toEqual([mockInfraction]);
+      expect(qb.where).toHaveBeenCalledWith('unit.id = :unitId', {
+        unitId: 10,
+      });
+      expect(result.data).toEqual([mockInfraction]);
+    });
+
+    it('lança NotFoundException quando unitId não existe', async () => {
+      (units.findOne as jest.Mock).mockRejectedValue(new NotFoundException());
+      await expect(service.findAll(pagination, 999)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('aplica skip e take corretos para page 2', async () => {
+      qb.getManyAndCount.mockResolvedValue([[], 0]);
+      await service.findAll({ page: 2, limit: 10 });
+      expect(qb.skip).toHaveBeenCalledWith(10);
+      expect(qb.take).toHaveBeenCalledWith(10);
     });
   });
   describe('findOne', () => {
