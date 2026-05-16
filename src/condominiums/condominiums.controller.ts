@@ -9,6 +9,7 @@ import {
   UseGuards,
   ParseIntPipe,
   Request,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Condominiums')
 @ApiBearerAuth()
@@ -45,10 +47,13 @@ export class CondominiumsController {
   }
 
   @ApiOperation({ summary: 'Listar condomínios do usuário autenticado' })
-  @ApiResponse({ status: 200, description: 'Lista de condomínios do usuário' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de condomínios do usuário',
+  })
   @Get()
-  findAll(@Request() req: any) {
-    return this.condominiumsService.findAll(req.user.id);
+  findAll(@Request() req: any, @Query() pagination: PaginationDto) {
+    return this.condominiumsService.findAll(req.user.id, pagination);
   }
 
   @ApiOperation({ summary: 'Buscar condomínio por ID' })

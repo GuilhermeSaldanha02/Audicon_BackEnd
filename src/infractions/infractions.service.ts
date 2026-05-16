@@ -12,6 +12,8 @@ import { UnitsService } from 'src/units/units.service';
 import { IaService } from 'src/ia/ia.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { CondominiumsService } from 'src/condominiums/condominiums.service';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
 @Injectable()
 export class InfractionsService {
   constructor(
@@ -30,14 +32,25 @@ export class InfractionsService {
     });
     return this.infractionsRepository.save(infraction);
   }
-  async findAll(unitId?: number) {
+  async findAll(
+    pagination: PaginationDto,
+    unitId?: number,
+  ): Promise<PaginatedResult<Infraction>> {
+    const { page, limit } = pagination;
+    const qb = this.infractionsRepository
+      .createQueryBuilder('i')
+      .leftJoinAndSelect('i.unit', 'unit')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('i.createdAt', 'DESC');
+
     if (unitId) {
       await this.unitsService.findOne(unitId);
-      return this.infractionsRepository.find({
-        where: { unit: { id: unitId } },
-      });
+      qb.where('unit.id = :unitId', { unitId });
     }
-    return this.infractionsRepository.find({ relations: ['unit'] });
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page, limit };
   }
   async findOne(id: number) {
     const infraction = await this.infractionsRepository.findOne({

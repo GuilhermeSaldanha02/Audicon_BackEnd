@@ -13,9 +13,12 @@ import {
 import { QueryFailedError } from 'typeorm';
 import { UserRole } from '../common/enums/user-role.enum';
 
-const makeQb = (result: any) => ({
+const makeQb = (data: any[], total = data.length) => ({
   innerJoin: jest.fn().mockReturnThis(),
-  getMany: jest.fn().mockResolvedValue(result),
+  skip: jest.fn().mockReturnThis(),
+  take: jest.fn().mockReturnThis(),
+  getMany: jest.fn().mockResolvedValue(data),
+  getManyAndCount: jest.fn().mockResolvedValue([data, total]),
 });
 
 describe('CondominiumsService', () => {
@@ -121,17 +124,27 @@ describe('CondominiumsService', () => {
   });
 
   describe('findAll', () => {
-    it('deve retornar lista de condomínios do usuário (happy path)', async () => {
+    const pagination = { page: 1, limit: 20 };
+
+    it('deve retornar resultado paginado do usuário', async () => {
       const list = [{ id: 1 }, { id: 2 }];
       condoRepo.createQueryBuilder.mockReturnValue(makeQb(list));
-      const result = await service.findAll(42);
-      expect(result).toEqual(list);
+      const result = await service.findAll(42, pagination);
+      expect(result).toEqual({ data: list, total: 2, page: 1, limit: 20 });
     });
 
     it('deve retornar lista vazia quando usuário não é membro de nenhum', async () => {
       condoRepo.createQueryBuilder.mockReturnValue(makeQb([]));
-      const result = await service.findAll(42);
-      expect(result).toEqual([]);
+      const result = await service.findAll(42, pagination);
+      expect(result).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+    });
+
+    it('deve aplicar skip e take corretos para page 3', async () => {
+      const qb = makeQb([]);
+      condoRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll(1, { page: 3, limit: 10 });
+      expect(qb.skip).toHaveBeenCalledWith(20);
+      expect(qb.take).toHaveBeenCalledWith(10);
     });
   });
 

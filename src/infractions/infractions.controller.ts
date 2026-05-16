@@ -25,6 +25,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfractionsService } from './infractions.service';
 import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @ApiTags('Infractions')
 @ApiBearerAuth()
@@ -43,14 +44,17 @@ export class InfractionsController {
     return this.infractionsService.create(dto);
   }
 
-  @ApiOperation({ summary: 'Listar infrações (filtrar por unidade)' })
+  @ApiOperation({ summary: 'Listar infrações (filtrar por unidade, paginado)' })
   @ApiQuery({ name: 'unitId', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Lista de infrações' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Lista paginada de infrações' })
   @Get()
   findAll(
+    @Query() pagination: PaginationDto,
     @Query('unitId', new ParseIntPipe({ optional: true })) unitId?: number,
   ) {
-    return this.infractionsService.findAll(unitId);
+    return this.infractionsService.findAll(pagination, unitId);
   }
 
   @ApiOperation({ summary: 'Buscar infração por ID' })
