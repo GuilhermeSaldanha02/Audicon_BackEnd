@@ -5,6 +5,7 @@ import { Condominium } from './entities/condominium.entity';
 import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { UsersService } from '../users/users.service';
 import {
+  BadRequestException,
   ConflictException,
   InternalServerErrorException,
   NotFoundException,
@@ -31,6 +32,8 @@ describe('CondominiumsService', () => {
     create: jest.Mock;
     save: jest.Mock;
     findOne: jest.Mock;
+    count: jest.Mock;
+    delete: jest.Mock;
   };
   let usersService: { findOneByEmail: jest.Mock };
 
@@ -47,6 +50,8 @@ describe('CondominiumsService', () => {
       create: jest.fn(),
       save: jest.fn(),
       findOne: jest.fn(),
+      count: jest.fn(),
+      delete: jest.fn(),
     };
     usersService = { findOneByEmail: jest.fn() };
 
@@ -257,6 +262,74 @@ describe('CondominiumsService', () => {
           role: UserRole.RESIDENT,
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('removeMember', () => {
+    it('deve remover membro com sucesso', async () => {
+      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
+      ucRepo.findOne.mockResolvedValue({
+        userId: 5,
+        condominiumId: 1,
+        role: UserRole.RESIDENT,
+      });
+      ucRepo.delete.mockResolvedValue(undefined);
+
+      await expect(service.removeMember(1, 5)).resolves.toBeUndefined();
+      expect(ucRepo.delete).toHaveBeenCalledWith({
+        userId: 5,
+        condominiumId: 1,
+      });
+    });
+
+    it('deve lançar NotFoundException quando membro não existe', async () => {
+      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
+      ucRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.removeMember(1, 99)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(ucRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('deve lançar NotFoundException quando condomínio não existe', async () => {
+      condoRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.removeMember(999, 5)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('deve lançar BadRequestException ao remover o último ADMIN', async () => {
+      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
+      ucRepo.findOne.mockResolvedValue({
+        userId: 5,
+        condominiumId: 1,
+        role: UserRole.ADMIN,
+      });
+      ucRepo.count.mockResolvedValue(1);
+
+      await expect(service.removeMember(1, 5)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ucRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('deve remover ADMIN quando há mais de um', async () => {
+      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
+      ucRepo.findOne.mockResolvedValue({
+        userId: 5,
+        condominiumId: 1,
+        role: UserRole.ADMIN,
+      });
+      ucRepo.count.mockResolvedValue(2);
+      ucRepo.delete.mockResolvedValue(undefined);
+
+      await expect(service.removeMember(1, 5)).resolves.toBeUndefined();
+      expect(ucRepo.delete).toHaveBeenCalledWith({
+        userId: 5,
+        condominiumId: 1,
+      });
     });
   });
 });

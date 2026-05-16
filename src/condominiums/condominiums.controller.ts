@@ -104,4 +104,30 @@ export class CondominiumsController {
   ) {
     return this.condominiumsService.addMember(id, addMemberDto);
   }
+
+  @ApiOperation({ summary: 'Remover membro do condomínio (requer ADMIN)' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID do condomínio' })
+  @ApiParam({
+    name: 'userId',
+    type: Number,
+    description: 'ID do usuário a remover',
+  })
+  @ApiResponse({ status: 200, description: 'Membro removido' })
+  @ApiResponse({
+    status: 400,
+    description: 'Não é possível remover o último ADMIN',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Condomínio ou membro não encontrado',
+  })
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Delete(':id/members/:userId')
+  removeMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.condominiumsService.removeMember(id, userId);
+  }
 }

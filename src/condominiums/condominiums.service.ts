@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -98,5 +99,31 @@ export class CondominiumsService {
       role: dto.role,
     });
     return this.ucRepository.save(membership);
+  }
+
+  async removeMember(condominiumId: number, userId: number) {
+    await this.findOne(condominiumId);
+
+    const membership = await this.ucRepository.findOne({
+      where: { userId, condominiumId },
+    });
+    if (!membership) {
+      throw new NotFoundException(
+        `User #${userId} is not a member of condominium #${condominiumId}.`,
+      );
+    }
+
+    if (membership.role === UserRole.ADMIN) {
+      const adminCount = await this.ucRepository.count({
+        where: { condominiumId, role: UserRole.ADMIN },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException(
+          'Cannot remove the last ADMIN of a condominium.',
+        );
+      }
+    }
+
+    await this.ucRepository.delete({ userId, condominiumId });
   }
 }
