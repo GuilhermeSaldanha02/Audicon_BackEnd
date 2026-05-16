@@ -42,7 +42,7 @@ export class InfractionsService {
       .leftJoinAndSelect('i.unit', 'unit')
       .skip((page - 1) * limit)
       .take(limit)
-      .orderBy('i.createdAt', 'DESC');
+      .orderBy('i.occurrenceDate', 'DESC');
 
     if (unitId) {
       await this.unitsService.findOne(unitId);
