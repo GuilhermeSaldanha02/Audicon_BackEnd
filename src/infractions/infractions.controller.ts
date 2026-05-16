@@ -17,7 +17,6 @@ import {
   ApiBearerAuth,
   ApiResponse,
   ApiParam,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
@@ -25,7 +24,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfractionsService } from './infractions.service';
 import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { InfractionQueryDto } from './dto/infraction-query.dto';
 
 @ApiTags('Infractions')
 @ApiBearerAuth()
@@ -45,15 +44,10 @@ export class InfractionsController {
   }
 
   @ApiOperation({ summary: 'Listar infrações (filtrar por unidade, paginado)' })
-  @ApiQuery({ name: 'unitId', required: false, type: Number })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'Lista paginada de infrações' })
   @Get()
-  findAll(
-    @Query() pagination: PaginationDto,
-    @Query('unitId', new ParseIntPipe({ optional: true })) unitId?: number,
-  ) {
+  findAll(@Query() query: InfractionQueryDto) {
+    const { unitId, ...pagination } = query;
     return this.infractionsService.findAll(pagination, unitId);
   }
 
