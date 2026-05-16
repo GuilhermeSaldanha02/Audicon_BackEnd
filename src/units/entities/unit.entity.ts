@@ -15,6 +15,10 @@ export class Unit {
   identifier: string;
   @Column()
   ownerName: string;
+  @Column({ type: 'varchar', nullable: true })
+  residentEmail: string | null;
+  @Column({ type: 'varchar', nullable: true })
+  residentPhone: string | null;
   @ManyToOne(() => Condominium, (condominium) => condominium.units)
   condominium: Condominium;
   @OneToMany(() => Infraction, (infraction) => infraction.unit)
