@@ -69,3 +69,63 @@ Ver `.env.example` na raiz. Obrigatórias: `DB_*`, `JWT_SECRET` (min 16 chars), 
 - Testes com `--maxWorkers=2` evitam SIGTERM por pressão de memória no Windows
 - Thresholds de coverage ativos: global 88%/84%/88%/65%, por módulo ver `package.json#jest.coverageThreshold`
 - Prompt da IA em arquivo versionado: `src/ia/prompts/analyze-infraction.v1.md`
+
+## Visão completa do produto (contexto de negócio)
+
+Audicon é um **SaaS multi-tenant** para gestão de infrações em condomínios. Hierarquia:
+
+```
+Empresa (tenant master, ex.: Audicon)
+  └── Funcionários da empresa
+        └── Condomínios gerenciados pela empresa
+              └── Unidades → Moradores (com email + telefone)
+```
+
+**Fluxo principal (visão de funcionário):**
+1. Login → seleciona condomínio (puxa dados do prédio automaticamente)
+2. Seleciona unidade do morador
+3. Faz upload de imagens da infração (opcional)
+4. Descreve brevemente o ocorrido
+5. **IA analisa**: lê o regimento do prédio → encontra a regra violada → verifica reincidência → determina a ação cabível
+6. IA gera documento detalhado (advertência/multa) para o morador
+7. Funcionário revisa e dá "ok" para envio
+8. Sistema envia notificação para o morador via:
+   - E-mail cadastrado
+   - WhatsApp cadastrado
+
+## Backlog pendente (ordem de valor)
+
+### Alta prioridade — fluxo principal do produto
+
+- [ ] **Dados de contato do morador na Unit** — adicionar `residentEmail` e `residentPhone` (desbloqueia notificações)
+- [ ] **Upload de imagens da infração** — armazenamento (S3 / disco local) + relação Infraction ↔ Image
+- [ ] **IA lê o regimento do prédio** — cada Condominium tem PDF de regimento, IA usa como contexto na análise
+- [ ] **Contagem de reincidências** — service que conta infrações anteriores do morador/unidade no mesmo tipo
+- [ ] **Fluxo de aprovação** — novo status `PENDING_APPROVAL` antes de `SENT`; funcionário revisa e aprova
+- [ ] **Envio de e-mail** — integração SendGrid/Resend, template do documento
+- [ ] **Envio de WhatsApp** — integração Twilio/Z-API
+- [ ] **Multi-tenant (entidade Company)** — empresa master no topo da hierarquia; isola dados entre empresas; refatoração estrutural (impacta JWT, RBAC, filtros)
+
+### Média prioridade — qualidade/manutenção
+
+- [ ] **RBAC nas rotas de infrações** — hoje `/infractions/**` é só JWT; criar `InfractionRolesGuard` que resolve `condominiumId` via DB lookup (infraction → unit → condominium)
+- [ ] **Soft delete** em Condominium, Unit, Infraction (auditoria, recovery)
+- [ ] **Audit log** — registro de quem fez o quê (criou infração, aprovou, enviou)
+
+### Baixa prioridade — features adicionais
+
+- [ ] Dashboard com métricas (infrações por condomínio/mês/tipo)
+- [ ] Exportação CSV de infrações
+- [ ] Histórico de notificações enviadas (status: entregue, lida, etc.)
+
+## Frontend (em paralelo)
+
+Frontend está sendo desenvolvido em paralelo ao backend. Backend atual é estável o suficiente para consumir os fluxos:
+
+- Login/cadastro
+- CRUD de condomínios (com paginação)
+- CRUD de unidades
+- Criar infração → analisar via IA → baixar PDF
+- Adicionar/remover membros do condomínio
+
+Quando o backend evoluir (imagens, multi-tenant, notificações), o frontend integra incrementalmente.
