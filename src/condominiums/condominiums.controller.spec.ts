@@ -22,6 +22,7 @@ describe('CondominiumsController', () => {
             update: jest.fn(),
             remove: jest.fn(),
             addMember: jest.fn(),
+            removeMember: jest.fn(),
           },
         },
       ],
@@ -99,5 +100,12 @@ describe('CondominiumsController', () => {
     const result = await controller.addMember(3, dto);
     expect(result).toEqual(membership);
     expect(service.addMember).toHaveBeenCalledWith(3, dto);
+  });
+
+  it('removeMember deve delegar para o service com condominiumId e userId', async () => {
+    service.removeMember.mockResolvedValue(undefined);
+    const result = await controller.removeMember(3, 5);
+    expect(result).toBeUndefined();
+    expect(service.removeMember).toHaveBeenCalledWith(3, 5);
   });
 });
