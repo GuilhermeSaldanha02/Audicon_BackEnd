@@ -12,7 +12,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Audicon API')
-    .setDescription('API de gerenciamento de condomínios com análise de infrações via IA')
+    .setDescription(
+      'API de gerenciamento de condomínios com análise de infrações via IA',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();

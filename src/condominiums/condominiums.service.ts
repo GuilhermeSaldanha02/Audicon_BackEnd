@@ -26,7 +26,8 @@ export class CondominiumsService {
 
   async create(createCondominiumDto: CreateCondominiumDto, userId: number) {
     try {
-      const newCondominium = this.condominiumsRepository.create(createCondominiumDto);
+      const newCondominium =
+        this.condominiumsRepository.create(createCondominiumDto);
       const saved = await this.condominiumsRepository.save(newCondominium);
 
       const membership = this.ucRepository.create({
@@ -42,7 +43,9 @@ export class CondominiumsService {
         error instanceof QueryFailedError &&
         (error as any)?.driverError?.code === '23505'
       ) {
-        throw new ConflictException('A condominium with this CNPJ already exists.');
+        throw new ConflictException(
+          'A condominium with this CNPJ already exists.',
+        );
       }
       throw new InternalServerErrorException('Failed to create condominium.');
     }

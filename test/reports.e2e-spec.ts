@@ -1,10 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { ReportsController } from '../src/infractions/reports.controller';
 import { InfractionsService } from '../src/infractions/infractions.service';
 import { PdfService } from '../src/pdf/pdf.service';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../src/common/guards/roles.guard';
 import { setupApp } from '../src/setup-app';
 import { ConfigService } from '@nestjs/config';
 
@@ -45,6 +46,8 @@ describe('Reports (e2e)', () => {
       ],
     })
       .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

@@ -9,7 +9,10 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @ApiOperation({ summary: 'Criar novo usuário' })
-  @ApiResponse({ status: 201, description: 'Usuário criado (senha omitida na resposta)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Usuário criado (senha omitida na resposta)',
+  })
   @ApiResponse({ status: 409, description: 'E-mail já cadastrado' })
   @Post()
   async create(@Body() dto: CreateUserDto) {

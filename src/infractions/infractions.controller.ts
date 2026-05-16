@@ -11,7 +11,15 @@ import {
   Res,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfractionsService } from './infractions.service';
@@ -26,7 +34,10 @@ export class InfractionsController {
   constructor(private readonly infractionsService: InfractionsService) {}
 
   @ApiOperation({ summary: 'Criar infração' })
-  @ApiResponse({ status: 201, description: 'Infração criada com status pending' })
+  @ApiResponse({
+    status: 201,
+    description: 'Infração criada com status pending',
+  })
   @Post()
   create(@Body() dto: CreateInfractionDto) {
     return this.infractionsService.create(dto);
@@ -51,10 +62,20 @@ export class InfractionsController {
     return this.infractionsService.findOne(id);
   }
 
-  @ApiOperation({ summary: 'Analisar infração via IA (Gemini)' })
+  @ApiOperation({
+    summary: 'Analisar infração via IA (Gemini) — limite: 10 req/min',
+  })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'Infração analisada, status → analyzed' })
+  @ApiResponse({
+    status: 200,
+    description: 'Infração analisada, status → analyzed',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Muitas requisições — aguarde antes de tentar novamente',
+  })
   @ApiResponse({ status: 502, description: 'Erro na API Gemini' })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post(':id/analyze')
   analyze(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.analyze(id);
@@ -62,7 +83,11 @@ export class InfractionsController {
 
   @ApiOperation({ summary: 'Download do documento PDF da infração' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'PDF gerado', content: { 'application/pdf': {} } })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF gerado',
+    content: { 'application/pdf': {} },
+  })
   @Get(':id/document')
   async generateDocument(
     @Param('id', ParseIntPipe) id: number,
