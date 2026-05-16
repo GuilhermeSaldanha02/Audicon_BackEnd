@@ -59,10 +59,7 @@ describe('InfractionsController', () => {
     const paginated = { data: [{ id: 2 }], total: 1, page: 1, limit: 20 };
     service.findAll.mockResolvedValue(paginated);
     const result = await controller.findAll(query);
-    expect(service.findAll).toHaveBeenCalledWith(
-      { page: 1, limit: 20 },
-      10,
-    );
+    expect(service.findAll).toHaveBeenCalledWith({ page: 1, limit: 20 }, 10);
     expect(result).toEqual(paginated);
   });
   it('findOne chama service.findOne', async () => {
