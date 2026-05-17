@@ -7,6 +7,7 @@ import { IaService } from '../ia/ia.service';
 import { PdfService } from '../pdf/pdf.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
 import { MailService } from '../mail/mail.service';
+import { ImagesService } from './images.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 describe('InfractionsService', () => {
   let service: InfractionsService;
@@ -27,6 +28,7 @@ describe('InfractionsService', () => {
     updatedAt: new Date('2024-06-08T10:00:00Z'),
     approvedAt: null,
     sentAt: null,
+    images: [] as any,
     unit: {
       id: 10,
       identifier: 'A101',
@@ -95,6 +97,12 @@ describe('InfractionsService', () => {
           provide: MailService,
           useValue: {
             sendInfractionEmail: jest.fn().mockResolvedValue({ id: 'mock-1' }),
+          },
+        },
+        {
+          provide: ImagesService,
+          useValue: {
+            getContentBuffers: jest.fn().mockResolvedValue([]),
           },
         },
       ],

@@ -1,9 +1,11 @@
 import { Unit } from '../../units/entities/unit.entity';
+import { InfractionImage } from './infraction-image.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -55,4 +57,6 @@ export class Infraction {
   sentAt: Date | null;
   @ManyToOne(() => Unit, (unit) => unit.infractions)
   unit: Unit;
+  @OneToMany(() => InfractionImage, (image) => image.infraction)
+  images: InfractionImage[];
 }
