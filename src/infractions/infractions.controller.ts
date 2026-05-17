@@ -123,6 +123,26 @@ export class InfractionsController {
     return this.infractionsService.approve(id, dto);
   }
 
+  @ApiOperation({
+    summary:
+      'Enviar infração aprovada por e-mail ao morador (status approved → sent).',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'E-mail enviado, status → sent',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Infração não está no status approved ou unidade sem e-mail cadastrado',
+  })
+  @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @Post(':id/send')
+  send(@Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.send(id);
+  }
+
   @ApiOperation({ summary: 'Atualizar infração' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Infração atualizada' })

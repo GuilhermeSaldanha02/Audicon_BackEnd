@@ -6,6 +6,7 @@ import { UnitsService } from '../units/units.service';
 import { IaService } from '../ia/ia.service';
 import { PdfService } from '../pdf/pdf.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
+import { MailService } from '../mail/mail.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 describe('InfractionsService', () => {
   let service: InfractionsService;
@@ -13,6 +14,7 @@ describe('InfractionsService', () => {
   let units: any;
   let ia: any;
   let pdf: any;
+  let mail: any;
   let condos: any;
   let qb: any;
   const mockInfraction: Infraction = {
@@ -24,10 +26,12 @@ describe('InfractionsService', () => {
     occurrenceDate: new Date('2024-06-08T10:00:00Z'),
     updatedAt: new Date('2024-06-08T10:00:00Z'),
     approvedAt: null,
+    sentAt: null,
     unit: {
       id: 10,
       identifier: 'A101',
       ownerName: 'John Doe',
+      residentEmail: 'morador@teste.com',
       condominium: { id: 5, name: 'Condo Alpha' } as any,
       infractions: [] as any,
     } as any,
@@ -87,6 +91,12 @@ describe('InfractionsService', () => {
             findOne: jest.fn(),
           },
         },
+        {
+          provide: MailService,
+          useValue: {
+            sendInfractionEmail: jest.fn().mockResolvedValue({ id: 'mock-1' }),
+          },
+        },
       ],
     }).compile();
     service = module.get<InfractionsService>(InfractionsService);
@@ -95,6 +105,7 @@ describe('InfractionsService', () => {
     ia = module.get(IaService);
     pdf = module.get(PdfService);
     condos = module.get(CondominiumsService);
+    mail = module.get(MailService);
   });
   it('should be defined', () => {
     expect(service).toBeDefined();
@@ -309,6 +320,62 @@ describe('InfractionsService', () => {
     it('propaga NotFound quando infração não existe', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue(null);
       await expect(service.approve(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+  describe('send', () => {
+    const approved = {
+      ...mockInfraction,
+      status: InfractionStatus.APPROVED,
+      formalDescription: 'Descrição formal aprovada',
+    };
+    it('envia e-mail e transiciona para SENT', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({ ...approved });
+      (pdf.gerarDocumentoInfracao as jest.Mock).mockResolvedValue(
+        Buffer.from('pdf-bytes'),
+      );
+      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
+      const result = await service.send(1);
+      expect(mail.sendInfractionEmail).toHaveBeenCalledWith({
+        infraction: expect.objectContaining({ id: 1 }),
+        to: 'morador@teste.com',
+        pdfBuffer: expect.any(Buffer),
+      });
+      expect(result.status).toBe(InfractionStatus.SENT);
+      expect(result.sentAt).toBeInstanceOf(Date);
+    });
+    it('rejeita quando status é PENDING', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.PENDING,
+      });
+      await expect(service.send(1)).rejects.toThrow(BadRequestException);
+      expect(mail.sendInfractionEmail).not.toHaveBeenCalled();
+    });
+    it('rejeita quando status é ANALYZED', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.ANALYZED,
+      });
+      await expect(service.send(1)).rejects.toThrow(BadRequestException);
+    });
+    it('rejeita quando status já é SENT', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.SENT,
+      });
+      await expect(service.send(1)).rejects.toThrow(BadRequestException);
+    });
+    it('rejeita quando unidade não tem residentEmail', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...approved,
+        unit: { ...approved.unit, residentEmail: null },
+      });
+      await expect(service.send(1)).rejects.toThrow(BadRequestException);
+      expect(mail.sendInfractionEmail).not.toHaveBeenCalled();
+    });
+    it('propaga NotFound quando infração não existe', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue(null);
+      await expect(service.send(999)).rejects.toThrow(NotFoundException);
     });
   });
   describe('generateDocument', () => {

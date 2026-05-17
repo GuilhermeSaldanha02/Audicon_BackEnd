@@ -22,6 +22,9 @@ export const envValidationSchema = Joi.object({
   GEMINI_MODEL: Joi.string().optional(),
   GEMINI_TIMEOUT_MS: Joi.number().integer().min(1000).max(60000).default(15000),
 
+  RESEND_API_KEY: Joi.string().optional(),
+  RESEND_FROM_EMAIL: Joi.string().email().optional(),
+
   LOG_LEVEL: Joi.string()
     .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
     .optional(),
