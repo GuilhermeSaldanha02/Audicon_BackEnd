@@ -135,4 +135,51 @@ export class CondominiumsService {
 
     await this.ucRepository.delete({ userId, condominiumId });
   }
+
+  async setRegimento(condominiumId: number, filename: string, content: Buffer) {
+    await this.findOne(condominiumId);
+    await this.condominiumsRepository.update(condominiumId, {
+      regimentoFilename: filename,
+      regimentoContent: content,
+      regimentoUploadedAt: new Date(),
+    });
+    return {
+      filename,
+      sizeBytes: content.length,
+      uploadedAt: new Date().toISOString(),
+    };
+  }
+
+  async getRegimento(
+    condominiumId: number,
+  ): Promise<{ filename: string; content: Buffer }> {
+    const row = await this.condominiumsRepository
+      .createQueryBuilder('c')
+      .addSelect('c.regimentoContent')
+      .where('c.id = :id', { id: condominiumId })
+      .getOne();
+    if (!row) {
+      throw new NotFoundException(
+        `Condominium with ID #${condominiumId} not found.`,
+      );
+    }
+    if (!row.regimentoContent || !row.regimentoFilename) {
+      throw new NotFoundException(
+        'Regimento não cadastrado para este condomínio.',
+      );
+    }
+    return {
+      filename: row.regimentoFilename,
+      content: row.regimentoContent,
+    };
+  }
+
+  async deleteRegimento(condominiumId: number) {
+    await this.findOne(condominiumId);
+    await this.condominiumsRepository.update(condominiumId, {
+      regimentoFilename: null,
+      regimentoContent: null,
+      regimentoUploadedAt: null,
+    });
+  }
 }

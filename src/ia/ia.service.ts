@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Infraction } from 'src/infractions/entities/infraction.entity';
+import { CondominiumsService } from 'src/condominiums/condominiums.service';
 import {
   geminiConfigError,
   geminiTimeoutError,
@@ -8,7 +9,9 @@ import {
 } from './errors';
 import { loadPromptTemplate } from './prompts/load-prompt';
 
-const PROMPT_FILE = 'analyze-infraction.v1.md';
+const PROMPT_V1 = 'analyze-infraction.v1.md';
+const PROMPT_V2 = 'analyze-infraction.v2.md';
+const REGIMENTO_MAX_CHARS = 30000;
 
 @Injectable()
 export class IaService implements OnModuleInit {
@@ -21,7 +24,10 @@ export class IaService implements OnModuleInit {
   private geminiModel: string;
   private timeoutMs: number;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly condominiumsService: CondominiumsService,
+  ) {
     this.apiKey = this.configService.get<string>('GEMINI_API_KEY');
     this.nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
     this.geminiApiEndpoint =
@@ -72,9 +78,13 @@ export class IaService implements OnModuleInit {
     }
   }
 
-  async analisarInfracao(infraction: Infraction): Promise<{
+  async analisarInfracao(
+    infraction: Infraction,
+    regimentoText?: string,
+  ): Promise<{
     descricao_formal?: string;
     penalidade_sugerida?: string;
+    artigo_violado?: string | null;
     formalDescription?: string;
     suggestedPenalty?: string;
   }> {
@@ -95,9 +105,18 @@ export class IaService implements OnModuleInit {
       return this.getFallbackResponse(infraction);
     }
 
-    const prompt = loadPromptTemplate(PROMPT_FILE, {
-      description: infraction.description,
-    });
+    const hasRegimento = regimentoText && regimentoText.trim().length > 0;
+    const prompt = hasRegimento
+      ? loadPromptTemplate(PROMPT_V2, {
+          description: infraction.description,
+          regimento: regimentoText.slice(0, REGIMENTO_MAX_CHARS),
+        })
+      : loadPromptTemplate(PROMPT_V1, {
+          description: infraction.description,
+        });
+    this.logger.log(
+      `Analisando infração #${infraction.id} (regimento ${hasRegimento ? 'presente' : 'ausente'}).`,
+    );
 
     let rawText: string;
     try {
@@ -134,6 +153,7 @@ export class IaService implements OnModuleInit {
     return {
       descricao_formal: parsed.descricao_formal,
       penalidade_sugerida: parsed.penalidade_sugerida,
+      artigo_violado: parsed.artigo_violado ?? null,
       formalDescription: parsed.descricao_formal,
       suggestedPenalty: parsed.penalidade_sugerida,
     };
@@ -159,6 +179,14 @@ export class IaService implements OnModuleInit {
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
     }
+  }
+
+  async extractRegimentoText(condominiumId: number): Promise<string> {
+    const { content } =
+      await this.condominiumsService.getRegimento(condominiumId);
+    const pdfParse = ((await eval('import("pdf-parse")')) as any).default;
+    const data = await pdfParse(content);
+    return data.text;
   }
 
   private getFallbackResponse(infraction: Infraction) {

@@ -68,6 +68,7 @@ describe('InfractionsService', () => {
           provide: IaService,
           useValue: {
             analisarInfracao: jest.fn(),
+            extractRegimentoText: jest.fn().mockResolvedValue(undefined),
           },
         },
         {

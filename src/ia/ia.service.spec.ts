@@ -1,10 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IaService } from './ia.service';
 import { ConfigService } from '@nestjs/config';
+import { CondominiumsService } from 'src/condominiums/condominiums.service';
 import {
   BadGatewayException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+
+const mockCondominiumsService: Partial<CondominiumsService> = {
+  getRegimento: jest.fn(),
+};
 
 describe('IaService', () => {
   let service: IaService;
@@ -15,7 +20,11 @@ describe('IaService', () => {
       get: jest.fn((key: string) => env[key]),
     } as any;
     const module: TestingModule = await Test.createTestingModule({
-      providers: [IaService, { provide: ConfigService, useValue: config }],
+      providers: [
+        IaService,
+        { provide: ConfigService, useValue: config },
+        { provide: CondominiumsService, useValue: mockCondominiumsService },
+      ],
     }).compile();
     service = module.get<IaService>(IaService);
   }
