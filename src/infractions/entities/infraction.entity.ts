@@ -41,6 +41,12 @@ export class Infraction {
   occurrenceDate: Date;
   @UpdateDateColumn()
   updatedAt: Date;
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    comment: 'When the infraction was approved by staff.',
+  })
+  approvedAt: Date | null;
   @ManyToOne(() => Unit, (unit) => unit.infractions)
   unit: Unit;
 }

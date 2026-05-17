@@ -23,6 +23,7 @@ describe('InfractionsService', () => {
     status: InfractionStatus.PENDING,
     occurrenceDate: new Date('2024-06-08T10:00:00Z'),
     updatedAt: new Date('2024-06-08T10:00:00Z'),
+    approvedAt: null,
     unit: {
       id: 10,
       identifier: 'A101',
@@ -255,6 +256,59 @@ describe('InfractionsService', () => {
       (qb.getCount as jest.Mock).mockResolvedValue(0);
       const result = await service.countByUnit(42);
       expect(result).toEqual({ total: 0, last12months: 0 });
+    });
+  });
+  describe('approve', () => {
+    it('aprova infração no status ANALYZED', async () => {
+      const analyzed = {
+        ...mockInfraction,
+        status: InfractionStatus.ANALYZED,
+      };
+      (repo.findOne as jest.Mock).mockResolvedValue(analyzed);
+      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
+      const result = await service.approve(1);
+      expect(result.status).toBe(InfractionStatus.APPROVED);
+      expect(result.approvedAt).toBeInstanceOf(Date);
+    });
+    it('permite override de formalDescription e suggestedPenalty', async () => {
+      const analyzed = {
+        ...mockInfraction,
+        status: InfractionStatus.ANALYZED,
+      };
+      (repo.findOne as jest.Mock).mockResolvedValue(analyzed);
+      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
+      const result = await service.approve(1, {
+        formalDescription: 'Texto revisado',
+        suggestedPenalty: 'Multa',
+      });
+      expect(result.formalDescription).toBe('Texto revisado');
+      expect(result.suggestedPenalty).toBe('Multa');
+      expect(result.status).toBe(InfractionStatus.APPROVED);
+    });
+    it('rejeita quando status é PENDING', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.PENDING,
+      });
+      await expect(service.approve(1)).rejects.toThrow(BadRequestException);
+    });
+    it('rejeita quando status já é APPROVED', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.APPROVED,
+      });
+      await expect(service.approve(1)).rejects.toThrow(BadRequestException);
+    });
+    it('rejeita quando status é SENT', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.SENT,
+      });
+      await expect(service.approve(1)).rejects.toThrow(BadRequestException);
+    });
+    it('propaga NotFound quando infração não existe', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue(null);
+      await expect(service.approve(999)).rejects.toThrow(NotFoundException);
     });
   });
   describe('generateDocument', () => {
