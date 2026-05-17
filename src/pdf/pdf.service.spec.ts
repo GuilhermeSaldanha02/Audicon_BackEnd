@@ -14,6 +14,10 @@ jest.mock('pdfkit', () => {
       fontSize: jest.fn(() => instance),
       text: jest.fn(() => instance),
       moveDown: jest.fn(() => instance),
+      addPage: jest.fn(() => instance),
+      image: jest.fn(() => instance),
+      page: { margins: { left: 50 } },
+      y: 100,
       end: jest.fn(() => {
         if (state.error) {
           if (listeners['error']) {
@@ -119,6 +123,70 @@ describe('PdfService', () => {
       .map((c) => c[0])
       .join(' ');
     expect(allTextCalls).toContain('No infractions found');
+  });
+  it('renderiza página de evidências quando recebe imagens', async () => {
+    const infraction: any = {
+      unit: {
+        identifier: 'A101',
+        ownerName: 'John',
+        condominium: { name: 'Condo' },
+      },
+      occurrenceDate: new Date('2024-06-08T10:00:00Z'),
+      formalDescription: 'F',
+      suggestedPenalty: 'W',
+    };
+    const buffers = [
+      Buffer.from('img1'),
+      Buffer.from('img2'),
+      Buffer.from('img3'),
+    ];
+    await service.gerarDocumentoInfracao(infraction, buffers);
+    const PDFCtor = getPDFMockCtor();
+    const inst = PDFCtor.__getInstance();
+    expect(inst.addPage).toHaveBeenCalledTimes(1);
+    expect(inst.image).toHaveBeenCalledTimes(3);
+  });
+  it('limita renderização a 4 imagens mesmo recebendo mais', async () => {
+    const infraction: any = {
+      unit: {
+        identifier: 'A101',
+        ownerName: 'John',
+        condominium: { name: 'Condo' },
+      },
+      occurrenceDate: new Date(),
+      formalDescription: 'F',
+      suggestedPenalty: 'W',
+    };
+    const buffers = Array.from({ length: 8 }, (_, i) => Buffer.from(`img${i}`));
+    await service.gerarDocumentoInfracao(infraction, buffers);
+    const PDFCtor = getPDFMockCtor();
+    const inst = PDFCtor.__getInstance();
+    expect(inst.image).toHaveBeenCalledTimes(4);
+  });
+  it('ignora imagem inválida sem propagar erro', async () => {
+    const infraction: any = {
+      unit: {
+        identifier: 'A101',
+        ownerName: 'John',
+        condominium: { name: 'Condo' },
+      },
+      occurrenceDate: new Date(),
+      formalDescription: 'F',
+      suggestedPenalty: 'W',
+    };
+    const PDFCtor = getPDFMockCtor();
+    // override image to throw on first call
+    const buffer = await (async () => {
+      const result = service.gerarDocumentoInfracao(infraction, [
+        Buffer.from('bad'),
+      ]);
+      const inst = PDFCtor.__getInstance();
+      (inst.image as jest.Mock).mockImplementationOnce(() => {
+        throw new Error('invalid image');
+      });
+      return result;
+    })();
+    expect(Buffer.isBuffer(buffer)).toBe(true);
   });
   it('propaga erro quando o PDF emite erro', async () => {
     const infraction: any = {
