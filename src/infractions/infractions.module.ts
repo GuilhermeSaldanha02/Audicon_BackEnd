@@ -8,6 +8,7 @@ import { UnitsModule } from 'src/units/units.module';
 import { IaModule } from 'src/ia/ia.module';
 import { PdfModule } from 'src/pdf/pdf.module';
 import { CondominiumsModule } from 'src/condominiums/condominiums.module';
+import { MailModule } from 'src/mail/mail.module';
 import { RbacModule } from '../common/rbac.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { RbacModule } from '../common/rbac.module';
     IaModule,
     PdfModule,
     CondominiumsModule,
+    MailModule,
     RbacModule,
   ],
   controllers: [InfractionsController, ReportsController],

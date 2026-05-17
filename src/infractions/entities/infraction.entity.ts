@@ -47,6 +47,12 @@ export class Infraction {
     comment: 'When the infraction was approved by staff.',
   })
   approvedAt: Date | null;
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    comment: 'When the infraction notification was sent to the resident.',
+  })
+  sentAt: Date | null;
   @ManyToOne(() => Unit, (unit) => unit.infractions)
   unit: Unit;
 }

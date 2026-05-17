@@ -13,6 +13,7 @@ import { UnitsService } from 'src/units/units.service';
 import { IaService } from 'src/ia/ia.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { CondominiumsService } from 'src/condominiums/condominiums.service';
+import { MailService } from 'src/mail/mail.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
 @Injectable()
@@ -24,6 +25,7 @@ export class InfractionsService {
     private readonly iaService: IaService,
     private readonly pdfService: PdfService,
     private readonly condominiumsService: CondominiumsService,
+    private readonly mailService: MailService,
   ) {}
   async create(dto: CreateInfractionDto) {
     const unit = await this.unitsService.findOne(dto.unitId);
@@ -144,6 +146,35 @@ export class InfractionsService {
     }
     infraction.status = InfractionStatus.APPROVED;
     infraction.approvedAt = new Date();
+    return this.infractionsRepository.save(infraction);
+  }
+  async send(id: number) {
+    const infraction = await this.infractionsRepository.findOne({
+      where: { id },
+      relations: ['unit', 'unit.condominium'],
+    });
+    if (!infraction) {
+      throw new NotFoundException(`Infraction with ID #${id} not found.`);
+    }
+    if (infraction.status !== InfractionStatus.APPROVED) {
+      throw new BadRequestException(
+        `Infraction #${id} cannot be sent from status "${infraction.status}". Required status: "${InfractionStatus.APPROVED}".`,
+      );
+    }
+    const to = infraction.unit?.residentEmail;
+    if (!to) {
+      throw new BadRequestException(
+        `Unit of infraction #${id} has no resident email registered.`,
+      );
+    }
+    const pdfBuffer = await this.pdfService.gerarDocumentoInfracao(infraction);
+    await this.mailService.sendInfractionEmail({
+      infraction,
+      to,
+      pdfBuffer,
+    });
+    infraction.status = InfractionStatus.SENT;
+    infraction.sentAt = new Date();
     return this.infractionsRepository.save(infraction);
   }
   async findForReport(

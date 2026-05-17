@@ -9,6 +9,7 @@ describe('InfractionsController', () => {
     findOne: jest.Mock;
     analyze: jest.Mock;
     approve: jest.Mock;
+    send: jest.Mock;
     generateDocument: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
@@ -20,6 +21,7 @@ describe('InfractionsController', () => {
       findOne: jest.fn(),
       analyze: jest.fn(),
       approve: jest.fn(),
+      send: jest.fn(),
       generateDocument: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -104,6 +106,12 @@ describe('InfractionsController', () => {
     const result = await controller.approve(9, dto);
     expect(service.approve).toHaveBeenCalledWith(9, dto);
     expect(result.status).toBe('approved');
+  });
+  it('send chama service.send com id', async () => {
+    service.send.mockResolvedValue({ id: 10, status: 'sent' });
+    const result = await controller.send(10);
+    expect(service.send).toHaveBeenCalledWith(10);
+    expect(result).toEqual({ id: 10, status: 'sent' });
   });
   it('update chama service.update com id e dto', async () => {
     const dto: any = { description: 'Atualizado' };
