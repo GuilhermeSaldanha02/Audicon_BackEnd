@@ -184,7 +184,10 @@ export class IaService implements OnModuleInit {
   async extractRegimentoText(condominiumId: number): Promise<string> {
     const { content } =
       await this.condominiumsService.getRegimento(condominiumId);
-    const pdfParse = ((await eval('import("pdf-parse")')) as any).default;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse: (
+      buf: Buffer,
+    ) => Promise<{ text: string }> = require('pdf-parse');
     const data = await pdfParse(content);
     return data.text;
   }

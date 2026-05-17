@@ -7,6 +7,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
+const mockPdfParse = jest.fn();
+jest.mock(
+  'pdf-parse',
+  () =>
+    (...args: any[]) =>
+      mockPdfParse(...args),
+);
+
 const mockCondominiumsService: Partial<CondominiumsService> = {
   getRegimento: jest.fn(),
 };
@@ -168,5 +176,19 @@ describe('IaService', () => {
       .analisarInfracao({ description: 'Teste' } as any)
       .catch((e) => e);
     expect(err).toBeInstanceOf(BadGatewayException);
+  });
+
+  it('extractRegimentoText retorna texto extraído do PDF via pdf-parse', async () => {
+    const fakeBuffer = Buffer.from('fake pdf bytes');
+    (mockCondominiumsService.getRegimento as jest.Mock).mockResolvedValue({
+      filename: 'regimento.pdf',
+      content: fakeBuffer,
+    });
+    mockPdfParse.mockResolvedValue({ text: 'Artigo 1 — Proibido barulho.' });
+
+    const result = await service.extractRegimentoText(42);
+    expect(result).toBe('Artigo 1 — Proibido barulho.');
+    expect(mockCondominiumsService.getRegimento).toHaveBeenCalledWith(42);
+    expect(mockPdfParse).toHaveBeenCalledWith(fakeBuffer);
   });
 });
