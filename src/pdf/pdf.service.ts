@@ -5,7 +5,10 @@ import { Infraction } from 'src/infractions/entities/infraction.entity';
 import PDFDocument from 'pdfkit';
 @Injectable()
 export class PdfService {
-  async gerarDocumentoInfracao(infraction: Infraction): Promise<Buffer> {
+  async gerarDocumentoInfracao(
+    infraction: Infraction,
+    imageBuffers: Buffer[] = [],
+  ): Promise<Buffer> {
     const doc = new PDFDocument({ margin: 50 });
     const buffers: Buffer[] = [];
     doc.on('data', buffers.push.bind(buffers));
@@ -35,6 +38,37 @@ export class PdfService {
       .text(
         `The suggested penalty for this occurrence is: ${infraction.suggestedPenalty || 'Not defined'}.`,
       );
+    if (imageBuffers.length > 0) {
+      doc.addPage();
+      doc.fontSize(14).text('Evidence', { underline: true });
+      doc.moveDown();
+      const thumbWidth = 230;
+      const thumbHeight = 170;
+      const gapX = 20;
+      const gapY = 20;
+      const startX = doc.page.margins.left;
+      let row = 0;
+      let col = 0;
+      for (const buf of imageBuffers.slice(0, 4)) {
+        const x = startX + col * (thumbWidth + gapX);
+        const y = doc.y + row * (thumbHeight + gapY);
+        try {
+          doc.image(buf, x, y, {
+            fit: [thumbWidth, thumbHeight],
+            align: 'center',
+            valign: 'center',
+          });
+        } catch {
+          // skip invalid image (corrupt or unsupported)
+        }
+        col++;
+        if (col === 2) {
+          col = 0;
+          row++;
+        }
+      }
+      doc.y = doc.y + Math.ceil(imageBuffers.length / 2) * (thumbHeight + gapY);
+    }
     doc.moveDown(3);
     doc.fontSize(10).text('Sincerely,', { align: 'center' });
     doc

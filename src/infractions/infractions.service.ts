@@ -14,6 +14,7 @@ import { IaService } from 'src/ia/ia.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { CondominiumsService } from 'src/condominiums/condominiums.service';
 import { MailService } from 'src/mail/mail.service';
+import { ImagesService } from './images.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
 @Injectable()
@@ -26,6 +27,7 @@ export class InfractionsService {
     private readonly pdfService: PdfService,
     private readonly condominiumsService: CondominiumsService,
     private readonly mailService: MailService,
+    private readonly imagesService: ImagesService,
   ) {}
   async create(dto: CreateInfractionDto) {
     const unit = await this.unitsService.findOne(dto.unitId);
@@ -167,7 +169,11 @@ export class InfractionsService {
         `Unit of infraction #${id} has no resident email registered.`,
       );
     }
-    const pdfBuffer = await this.pdfService.gerarDocumentoInfracao(infraction);
+    const imageBuffers = await this.imagesService.getContentBuffers(id);
+    const pdfBuffer = await this.pdfService.gerarDocumentoInfracao(
+      infraction,
+      imageBuffers,
+    );
     await this.mailService.sendInfractionEmail({
       infraction,
       to,
@@ -214,6 +220,7 @@ export class InfractionsService {
         `The infraction with ID #${id} has not been analyzed by AI yet.`,
       );
     }
-    return this.pdfService.gerarDocumentoInfracao(infraction);
+    const imageBuffers = await this.imagesService.getContentBuffers(id);
+    return this.pdfService.gerarDocumentoInfracao(infraction, imageBuffers);
   }
 }
