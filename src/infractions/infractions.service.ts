@@ -71,6 +71,29 @@ export class InfractionsService {
     await this.findOne(id);
     await this.infractionsRepository.delete(id);
   }
+  async countByUnit(
+    unitId: number,
+    excludeId?: number,
+  ): Promise<{ total: number; last12months: number }> {
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+    const base = this.infractionsRepository
+      .createQueryBuilder('i')
+      .leftJoin('i.unit', 'unit')
+      .where('unit.id = :unitId', { unitId });
+    if (excludeId) {
+      base.andWhere('i.id != :excludeId', { excludeId });
+    }
+
+    const total = await base.getCount();
+    const last12months = await base
+      .clone()
+      .andWhere('i.occurrenceDate >= :since', { since: twelveMonthsAgo })
+      .getCount();
+
+    return { total, last12months };
+  }
   async analyze(id: number) {
     const infraction = await this.infractionsRepository.findOne({
       where: { id },
@@ -88,9 +111,14 @@ export class InfractionsService {
         .catch(() => undefined);
     }
 
+    const reincidencias = infraction.unit?.id
+      ? await this.countByUnit(infraction.unit.id, infraction.id)
+      : undefined;
+
     const aiResult = await this.iaService.analisarInfracao(
       infraction,
       regimentoText,
+      reincidencias,
     );
     infraction.formalDescription =
       (aiResult as any).descricao_formal ?? (aiResult as any).formalDescription;

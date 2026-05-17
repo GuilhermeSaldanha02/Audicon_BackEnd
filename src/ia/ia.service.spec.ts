@@ -178,6 +178,34 @@ describe('IaService', () => {
     expect(err).toBeInstanceOf(BadGatewayException);
   });
 
+  it('usa prompt v3 (com seção de reincidências) quando recebe reincidências', async () => {
+    await build({
+      NODE_ENV: 'test',
+      GEMINI_API_KEY: 'apikey123',
+      GEMINI_TIMEOUT_MS: 15000,
+    });
+    const mockModel = {
+      generateContent: jest.fn().mockResolvedValue({
+        response: {
+          text: () => '{"descricao_formal":"X","penalidade_sugerida":"Multa"}',
+        },
+      }),
+    };
+    (service as any).model = mockModel;
+    (service as any).apiKey = 'apikey123';
+    const infraction: any = { id: 7, description: 'Barulho noturno.' };
+    await service.analisarInfracao(infraction, 'Regimento texto.', {
+      total: 4,
+      last12months: 3,
+    });
+    const promptArg = mockModel.generateContent.mock.calls[0][0] as string;
+    expect(promptArg).toContain('Histórico de reincidências da unidade');
+    expect(promptArg).toContain('**4** infrações no total');
+    expect(promptArg).toContain('**3** infrações nos últimos 12 meses');
+    expect(promptArg).toContain('Regimento texto.');
+    expect(promptArg).toContain('"Barulho noturno."');
+  });
+
   it('extractRegimentoText retorna texto extraído do PDF via pdf-parse', async () => {
     const fakeBuffer = Buffer.from('fake pdf bytes');
     (mockCondominiumsService.getRegimento as jest.Mock).mockResolvedValue({

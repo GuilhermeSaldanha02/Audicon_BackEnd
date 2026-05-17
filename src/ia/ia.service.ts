@@ -11,7 +11,13 @@ import { loadPromptTemplate } from './prompts/load-prompt';
 
 const PROMPT_V1 = 'analyze-infraction.v1.md';
 const PROMPT_V2 = 'analyze-infraction.v2.md';
+const PROMPT_V3 = 'analyze-infraction.v3.md';
 const REGIMENTO_MAX_CHARS = 30000;
+
+export interface ReincidenciaContext {
+  total: number;
+  last12months: number;
+}
 
 @Injectable()
 export class IaService implements OnModuleInit {
@@ -81,6 +87,7 @@ export class IaService implements OnModuleInit {
   async analisarInfracao(
     infraction: Infraction,
     regimentoText?: string,
+    reincidencias?: ReincidenciaContext,
   ): Promise<{
     descricao_formal?: string;
     penalidade_sugerida?: string;
@@ -105,17 +112,30 @@ export class IaService implements OnModuleInit {
       return this.getFallbackResponse(infraction);
     }
 
-    const hasRegimento = regimentoText && regimentoText.trim().length > 0;
-    const prompt = hasRegimento
-      ? loadPromptTemplate(PROMPT_V2, {
-          description: infraction.description,
-          regimento: regimentoText.slice(0, REGIMENTO_MAX_CHARS),
-        })
-      : loadPromptTemplate(PROMPT_V1, {
-          description: infraction.description,
-        });
+    const hasRegimento = !!(regimentoText && regimentoText.trim().length > 0);
+    const hasReincidencias = !!reincidencias;
+    let prompt: string;
+    if (hasReincidencias) {
+      prompt = loadPromptTemplate(PROMPT_V3, {
+        description: infraction.description,
+        regimento: hasRegimento
+          ? regimentoText.slice(0, REGIMENTO_MAX_CHARS)
+          : '(Regimento interno não cadastrado para este condomínio.)',
+        total: String(reincidencias.total),
+        last12months: String(reincidencias.last12months),
+      });
+    } else if (hasRegimento) {
+      prompt = loadPromptTemplate(PROMPT_V2, {
+        description: infraction.description,
+        regimento: regimentoText.slice(0, REGIMENTO_MAX_CHARS),
+      });
+    } else {
+      prompt = loadPromptTemplate(PROMPT_V1, {
+        description: infraction.description,
+      });
+    }
     this.logger.log(
-      `Analisando infração #${infraction.id} (regimento ${hasRegimento ? 'presente' : 'ausente'}).`,
+      `Analisando infração #${infraction.id} (regimento ${hasRegimento ? 'presente' : 'ausente'}, reincidências ${hasReincidencias ? `total=${reincidencias.total} 12m=${reincidencias.last12months}` : 'ausentes'}).`,
     );
 
     let rawText: string;

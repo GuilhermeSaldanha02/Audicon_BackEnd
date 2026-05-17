@@ -42,6 +42,8 @@ describe('InfractionsService', () => {
       take: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      getCount: jest.fn().mockResolvedValue(0),
+      clone: jest.fn().mockReturnThis(),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -198,10 +200,18 @@ describe('InfractionsService', () => {
         penalidade_sugerida: 'Advertência',
       });
       (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
+      (qb.getCount as jest.Mock)
+        .mockResolvedValueOnce(2) // total
+        .mockResolvedValueOnce(1); // last12months
       const result = await service.analyze(1);
       expect(result.formalDescription).toBe('Formal PT');
       expect(result.suggestedPenalty).toBe('Advertência');
       expect(result.status).toBe(InfractionStatus.ANALYZED);
+      expect(ia.analisarInfracao).toHaveBeenCalledWith(
+        expect.any(Object),
+        undefined,
+        { total: 2, last12months: 1 },
+      );
     });
     it('aceita campos em inglês', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue({ ...mockInfraction });
@@ -214,6 +224,37 @@ describe('InfractionsService', () => {
       expect(result.formalDescription).toBe('Formal EN');
       expect(result.suggestedPenalty).toBe('Warning');
       expect(result.status).toBe(InfractionStatus.ANALYZED);
+    });
+  });
+  describe('countByUnit', () => {
+    it('retorna total e last12months a partir dos query builders', async () => {
+      (qb.getCount as jest.Mock)
+        .mockResolvedValueOnce(5) // total
+        .mockResolvedValueOnce(3); // last12months
+      const result = await service.countByUnit(10);
+      expect(result).toEqual({ total: 5, last12months: 3 });
+      expect(qb.where).toHaveBeenCalledWith('unit.id = :unitId', {
+        unitId: 10,
+      });
+      expect(qb.andWhere).not.toHaveBeenCalledWith(
+        'i.id != :excludeId',
+        expect.anything(),
+      );
+    });
+    it('exclui infração informada via excludeId', async () => {
+      (qb.getCount as jest.Mock)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
+      const result = await service.countByUnit(10, 99);
+      expect(result).toEqual({ total: 0, last12months: 0 });
+      expect(qb.andWhere).toHaveBeenCalledWith('i.id != :excludeId', {
+        excludeId: 99,
+      });
+    });
+    it('retorna zeros quando unidade não tem infrações', async () => {
+      (qb.getCount as jest.Mock).mockResolvedValue(0);
+      const result = await service.countByUnit(42);
+      expect(result).toEqual({ total: 0, last12months: 0 });
     });
   });
   describe('generateDocument', () => {
