@@ -24,6 +24,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfractionsService } from './infractions.service';
 import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
+import { ApproveInfractionDto } from './dto/approve-infraction.dto';
 import { InfractionQueryDto } from './dto/infraction-query.dto';
 
 @ApiTags('Infractions')
@@ -98,6 +99,28 @@ export class InfractionsController {
       'Content-Length': pdfBuffer.length,
     });
     res.end(pdfBuffer);
+  }
+
+  @ApiOperation({
+    summary:
+      'Aprovar infração analisada (status analyzed → approved). Permite override opcional dos campos.',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Infração aprovada, status → approved',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Infração não está no status analyzed',
+  })
+  @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @Patch(':id/approve')
+  approve(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ApproveInfractionDto,
+  ) {
+    return this.infractionsService.approve(id, dto);
   }
 
   @ApiOperation({ summary: 'Atualizar infração' })

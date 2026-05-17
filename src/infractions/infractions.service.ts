@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Infraction, InfractionStatus } from './entities/infraction.entity';
 import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
+import { ApproveInfractionDto } from './dto/approve-infraction.dto';
 import { UnitsService } from 'src/units/units.service';
 import { IaService } from 'src/ia/ia.service';
 import { PdfService } from 'src/pdf/pdf.service';
@@ -126,6 +127,23 @@ export class InfractionsService {
       (aiResult as any).penalidade_sugerida ??
       (aiResult as any).suggestedPenalty;
     infraction.status = InfractionStatus.ANALYZED;
+    return this.infractionsRepository.save(infraction);
+  }
+  async approve(id: number, dto: ApproveInfractionDto = {}) {
+    const infraction = await this.findOne(id);
+    if (infraction.status !== InfractionStatus.ANALYZED) {
+      throw new BadRequestException(
+        `Infraction #${id} cannot be approved from status "${infraction.status}". Required status: "${InfractionStatus.ANALYZED}".`,
+      );
+    }
+    if (dto.formalDescription !== undefined) {
+      infraction.formalDescription = dto.formalDescription;
+    }
+    if (dto.suggestedPenalty !== undefined) {
+      infraction.suggestedPenalty = dto.suggestedPenalty;
+    }
+    infraction.status = InfractionStatus.APPROVED;
+    infraction.approvedAt = new Date();
     return this.infractionsRepository.save(infraction);
   }
   async findForReport(

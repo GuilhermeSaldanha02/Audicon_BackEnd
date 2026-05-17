@@ -8,6 +8,7 @@ describe('InfractionsController', () => {
     findAll: jest.Mock;
     findOne: jest.Mock;
     analyze: jest.Mock;
+    approve: jest.Mock;
     generateDocument: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
@@ -18,6 +19,7 @@ describe('InfractionsController', () => {
       findAll: jest.fn(),
       findOne: jest.fn(),
       analyze: jest.fn(),
+      approve: jest.fn(),
       generateDocument: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -86,6 +88,22 @@ describe('InfractionsController', () => {
       'Content-Length': buffer.length,
     });
     expect(res.end).toHaveBeenCalledWith(buffer);
+  });
+  it('approve chama service.approve com id e dto vazio', async () => {
+    service.approve.mockResolvedValue({ id: 8, status: 'approved' });
+    const result = await controller.approve(8, {});
+    expect(service.approve).toHaveBeenCalledWith(8, {});
+    expect(result).toEqual({ id: 8, status: 'approved' });
+  });
+  it('approve repassa override de campos ao service', async () => {
+    const dto = {
+      formalDescription: 'Revisado',
+      suggestedPenalty: 'Multa',
+    };
+    service.approve.mockResolvedValue({ id: 9, status: 'approved', ...dto });
+    const result = await controller.approve(9, dto);
+    expect(service.approve).toHaveBeenCalledWith(9, dto);
+    expect(result.status).toBe('approved');
   });
   it('update chama service.update com id e dto', async () => {
     const dto: any = { description: 'Atualizado' };
