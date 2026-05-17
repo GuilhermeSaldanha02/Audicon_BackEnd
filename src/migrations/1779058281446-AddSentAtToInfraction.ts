@@ -11,9 +11,7 @@ export class AddSentAtToInfraction1779058281446 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `COMMENT ON COLUMN "infraction"."sentAt" IS NULL`,
-    );
+    await queryRunner.query(`COMMENT ON COLUMN "infraction"."sentAt" IS NULL`);
     await queryRunner.query(`ALTER TABLE "infraction" DROP COLUMN "sentAt"`);
   }
 }
