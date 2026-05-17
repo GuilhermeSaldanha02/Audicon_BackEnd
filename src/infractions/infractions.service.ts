@@ -72,8 +72,26 @@ export class InfractionsService {
     await this.infractionsRepository.delete(id);
   }
   async analyze(id: number) {
-    const infraction = await this.findOne(id);
-    const aiResult = await this.iaService.analisarInfracao(infraction);
+    const infraction = await this.infractionsRepository.findOne({
+      where: { id },
+      relations: ['unit', 'unit.condominium'],
+    });
+    if (!infraction) {
+      throw new NotFoundException(`Infraction with ID #${id} not found.`);
+    }
+
+    let regimentoText: string | undefined;
+    const condominiumId = infraction.unit?.condominium?.id;
+    if (condominiumId) {
+      regimentoText = await this.iaService
+        .extractRegimentoText(condominiumId)
+        .catch(() => undefined);
+    }
+
+    const aiResult = await this.iaService.analisarInfracao(
+      infraction,
+      regimentoText,
+    );
     infraction.formalDescription =
       (aiResult as any).descricao_formal ?? (aiResult as any).formalDescription;
     infraction.suggestedPenalty =

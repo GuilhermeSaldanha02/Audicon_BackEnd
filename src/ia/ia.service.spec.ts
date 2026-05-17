@@ -1,10 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IaService } from './ia.service';
 import { ConfigService } from '@nestjs/config';
+import { CondominiumsService } from 'src/condominiums/condominiums.service';
 import {
   BadGatewayException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+
+const mockPdfParse = jest.fn();
+jest.mock(
+  'pdf-parse',
+  () =>
+    (...args: any[]) =>
+      mockPdfParse(...args),
+);
+
+const mockCondominiumsService: Partial<CondominiumsService> = {
+  getRegimento: jest.fn(),
+};
 
 describe('IaService', () => {
   let service: IaService;
@@ -15,7 +28,11 @@ describe('IaService', () => {
       get: jest.fn((key: string) => env[key]),
     } as any;
     const module: TestingModule = await Test.createTestingModule({
-      providers: [IaService, { provide: ConfigService, useValue: config }],
+      providers: [
+        IaService,
+        { provide: ConfigService, useValue: config },
+        { provide: CondominiumsService, useValue: mockCondominiumsService },
+      ],
     }).compile();
     service = module.get<IaService>(IaService);
   }
@@ -159,5 +176,19 @@ describe('IaService', () => {
       .analisarInfracao({ description: 'Teste' } as any)
       .catch((e) => e);
     expect(err).toBeInstanceOf(BadGatewayException);
+  });
+
+  it('extractRegimentoText retorna texto extraído do PDF via pdf-parse', async () => {
+    const fakeBuffer = Buffer.from('fake pdf bytes');
+    (mockCondominiumsService.getRegimento as jest.Mock).mockResolvedValue({
+      filename: 'regimento.pdf',
+      content: fakeBuffer,
+    });
+    mockPdfParse.mockResolvedValue({ text: 'Artigo 1 — Proibido barulho.' });
+
+    const result = await service.extractRegimentoText(42);
+    expect(result).toBe('Artigo 1 — Proibido barulho.');
+    expect(mockCondominiumsService.getRegimento).toHaveBeenCalledWith(42);
+    expect(mockPdfParse).toHaveBeenCalledWith(fakeBuffer);
   });
 });

@@ -16,6 +16,15 @@ export class Condominium {
   @Column()
   address: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  regimentoFilename: string | null;
+
+  @Column({ type: 'bytea', nullable: true, select: false })
+  regimentoContent: Buffer | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  regimentoUploadedAt: Date | null;
+
   @OneToMany(() => Unit, (unit) => unit.condominium)
   units: Unit[];
 

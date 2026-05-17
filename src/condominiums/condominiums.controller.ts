@@ -10,6 +10,10 @@ import {
   ParseIntPipe,
   Request,
   Query,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,7 +21,11 @@ import {
   ApiBearerAuth,
   ApiResponse,
   ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { CondominiumsService } from './condominiums.service';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
@@ -134,5 +142,67 @@ export class CondominiumsController {
     @Param('userId', ParseIntPipe) userId: number,
   ) {
     return this.condominiumsService.removeMember(id, userId);
+  }
+
+  @ApiOperation({ summary: 'Upload do PDF de regimento (PDF, máx 5MB)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Regimento salvo' })
+  @ApiResponse({ status: 400, description: 'Arquivo inválido ou ausente' })
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Post(':id/regimento')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  uploadRegimento(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Arquivo obrigatório no campo "file".');
+    }
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('Apenas PDF é aceito.');
+    }
+    return this.condominiumsService.setRegimento(
+      id,
+      file.originalname,
+      file.buffer,
+    );
+  }
+
+  @ApiOperation({ summary: 'Download do PDF de regimento' })
+  @ApiResponse({ status: 200, description: 'PDF retornado' })
+  @ApiResponse({ status: 404, description: 'Regimento não cadastrado' })
+  @Get(':id/regimento')
+  async downloadRegimento(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const { filename, content } =
+      await this.condominiumsService.getRegimento(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': content.length,
+    });
+    res.end(content);
+  }
+
+  @ApiOperation({ summary: 'Remove o regimento cadastrado' })
+  @ApiResponse({ status: 200, description: 'Regimento removido' })
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Delete(':id/regimento')
+  removeRegimento(@Param('id', ParseIntPipe) id: number) {
+    return this.condominiumsService.deleteRegimento(id);
   }
 }
