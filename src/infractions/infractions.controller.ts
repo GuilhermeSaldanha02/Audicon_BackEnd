@@ -28,6 +28,16 @@ import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
 import { ApproveInfractionDto } from './dto/approve-infraction.dto';
 import { InfractionQueryDto } from './dto/infraction-query.dto';
+import { Actor } from 'src/audit/audit.service';
+
+function toActor(req: any): Actor {
+  return {
+    userId: req.user.id,
+    email: req.user.email,
+    isMaster: !!req.user.isMaster,
+    companyId: req.user.companyId ?? null,
+  };
+}
 
 @ApiTags('Infractions')
 @ApiBearerAuth()
@@ -47,6 +57,7 @@ export class InfractionsController {
       dto,
       req.user.companyId,
       !!req.user.isMaster,
+      toActor(req),
     );
   }
 
@@ -132,10 +143,11 @@ export class InfractionsController {
   @UseGuards(InfractionAccessGuard)
   @Patch(':id/approve')
   approve(
+    @Request() req: any,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ApproveInfractionDto,
   ) {
-    return this.infractionsService.approve(id, dto);
+    return this.infractionsService.approve(id, dto, toActor(req));
   }
 
   @ApiOperation({
@@ -155,8 +167,8 @@ export class InfractionsController {
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
   @UseGuards(InfractionAccessGuard)
   @Post(':id/send')
-  send(@Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.send(id);
+  send(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.send(id, toActor(req));
   }
 
   @ApiOperation({
@@ -175,8 +187,8 @@ export class InfractionsController {
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
   @UseGuards(InfractionAccessGuard)
   @Post(':id/send-whatsapp')
-  sendWhatsapp(@Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.sendWhatsapp(id);
+  sendWhatsapp(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.sendWhatsapp(id, toActor(req));
   }
 
   @ApiOperation({ summary: 'Atualizar infração' })
@@ -196,7 +208,7 @@ export class InfractionsController {
   @ApiResponse({ status: 200, description: 'Infração removida' })
   @UseGuards(InfractionAccessGuard)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.remove(id);
+  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.remove(id, toActor(req));
   }
 }

@@ -23,15 +23,26 @@ describe('CompaniesController', () => {
     controller = module.get(CompaniesController);
   });
 
-  it('create delega ao service', async () => {
+  it('create delega ao service com actor master', async () => {
     const dto: any = {
       name: 'X',
       cnpj: '00.000.000/0001-99',
       admin: { nome: 'A', email: 'a@x.com' },
     };
+    const req: any = {
+      user: {
+        id: 1,
+        email: 'master@audicon.com',
+        isMaster: true,
+        companyId: null,
+      },
+    };
     service.create.mockResolvedValue({ company: { id: 1 }, admin: {} });
-    const result = await controller.create(dto);
-    expect(service.create).toHaveBeenCalledWith(dto);
+    const result = await controller.create(req, dto);
+    expect(service.create).toHaveBeenCalledWith(
+      dto,
+      expect.objectContaining({ isMaster: true }),
+    );
     expect(result.company.id).toBe(1);
   });
 

@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditService, Actor } from '../audit/audit.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -29,9 +30,13 @@ export class CompaniesService {
     private readonly companiesRepository: Repository<Company>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreateCompanyDto): Promise<CreatedCompanyResult> {
+  async create(
+    dto: CreateCompanyDto,
+    actor?: Actor,
+  ): Promise<CreatedCompanyResult> {
     try {
       const company = this.companiesRepository.create({
         name: dto.name,
@@ -49,6 +54,16 @@ export class CompaniesService {
       });
       const savedUser = await this.usersRepository.save(user);
 
+      if (actor) {
+        this.auditService.log({
+          actor,
+          action: 'COMPANY_CREATED',
+          entity: 'company',
+          entityId: savedCompany.id,
+          context: { name: savedCompany.name, cnpj: savedCompany.cnpj },
+          companyIdOverride: savedCompany.id,
+        });
+      }
       return {
         company: savedCompany,
         admin: {
@@ -76,6 +91,7 @@ export class CompaniesService {
   async createEmployee(
     companyId: number,
     dto: { nome: string; email: string },
+    actor?: Actor,
   ): Promise<{
     id: number;
     nome: string;
@@ -104,6 +120,15 @@ export class CompaniesService {
       companyId,
     });
     const saved = await this.usersRepository.save(user);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'EMPLOYEE_CREATED',
+        entity: 'employee',
+        entityId: saved.id,
+        context: { email: saved.email, nome: saved.nome },
+      });
+    }
     return {
       id: saved.id,
       nome: saved.nome,

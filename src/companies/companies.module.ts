@@ -7,9 +7,13 @@ import { CompaniesService } from './companies.service';
 import { CompaniesController } from './companies.controller';
 import { EmployeesController } from './employees.controller';
 import { CompanyAdminGuard } from '../common/guards/company-admin.guard';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Company, User, UserCondominium])],
+  imports: [
+    TypeOrmModule.forFeature([Company, User, UserCondominium]),
+    AuditModule,
+  ],
   controllers: [CompaniesController, EmployeesController],
   providers: [CompaniesService, CompanyAdminGuard],
   exports: [CompaniesService],

@@ -17,6 +17,7 @@ import { CondominiumsService } from 'src/condominiums/condominiums.service';
 import { MailService } from 'src/mail/mail.service';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { ImagesService } from './images.service';
+import { AuditService, Actor } from 'src/audit/audit.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
 @Injectable()
@@ -31,11 +32,13 @@ export class InfractionsService {
     private readonly mailService: MailService,
     private readonly whatsappService: WhatsappService,
     private readonly imagesService: ImagesService,
+    private readonly auditService: AuditService,
   ) {}
   async create(
     dto: CreateInfractionDto,
     requesterCompanyId?: number | null,
     isMaster = false,
+    actor?: Actor,
   ) {
     const unit = await this.unitsService.findOne(dto.unitId);
     if (!isMaster) {
@@ -52,7 +55,17 @@ export class InfractionsService {
       description: dto.description,
       unit,
     });
-    return this.infractionsRepository.save(infraction);
+    const saved = await this.infractionsRepository.save(infraction);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'INFRACTION_CREATED',
+        entity: 'infraction',
+        entityId: saved.id,
+        context: { unitId: dto.unitId },
+      });
+    }
+    return saved;
   }
   private async resolveCondoId(unitId: number): Promise<number> {
     const row = await this.infractionsRepository.manager
@@ -107,9 +120,17 @@ export class InfractionsService {
     const updatedInfraction = Object.assign(infraction, dto);
     return this.infractionsRepository.save(updatedInfraction);
   }
-  async remove(id: number) {
+  async remove(id: number, actor?: Actor) {
     await this.findOne(id);
     await this.infractionsRepository.delete(id);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'INFRACTION_DELETED',
+        entity: 'infraction',
+        entityId: id,
+      });
+    }
   }
   async countByUnit(
     unitId: number,
@@ -168,7 +189,7 @@ export class InfractionsService {
     infraction.status = InfractionStatus.ANALYZED;
     return this.infractionsRepository.save(infraction);
   }
-  async approve(id: number, dto: ApproveInfractionDto = {}) {
+  async approve(id: number, dto: ApproveInfractionDto = {}, actor?: Actor) {
     const infraction = await this.findOne(id);
     if (infraction.status !== InfractionStatus.ANALYZED) {
       throw new BadRequestException(
@@ -183,9 +204,19 @@ export class InfractionsService {
     }
     infraction.status = InfractionStatus.APPROVED;
     infraction.approvedAt = new Date();
-    return this.infractionsRepository.save(infraction);
+    const saved = await this.infractionsRepository.save(infraction);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'INFRACTION_APPROVED',
+        entity: 'infraction',
+        entityId: id,
+        context: { suggestedPenalty: saved.suggestedPenalty },
+      });
+    }
+    return saved;
   }
-  async send(id: number) {
+  async send(id: number, actor?: Actor) {
     const infraction = await this.infractionsRepository.findOne({
       where: { id },
       relations: ['unit', 'unit.condominium'],
@@ -216,9 +247,19 @@ export class InfractionsService {
     });
     infraction.status = InfractionStatus.SENT;
     infraction.sentAt = new Date();
-    return this.infractionsRepository.save(infraction);
+    const saved = await this.infractionsRepository.save(infraction);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'INFRACTION_SENT',
+        entity: 'infraction',
+        entityId: id,
+        context: { to },
+      });
+    }
+    return saved;
   }
-  async sendWhatsapp(id: number) {
+  async sendWhatsapp(id: number, actor?: Actor) {
     const infraction = await this.infractionsRepository.findOne({
       where: { id },
       relations: ['unit', 'unit.condominium'],
@@ -242,7 +283,17 @@ export class InfractionsService {
     }
     await this.whatsappService.sendInfractionAlert({ infraction, phone });
     infraction.whatsappSentAt = new Date();
-    return this.infractionsRepository.save(infraction);
+    const saved = await this.infractionsRepository.save(infraction);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'INFRACTION_WHATSAPP_SENT',
+        entity: 'infraction',
+        entityId: id,
+        context: { phone },
+      });
+    }
+    return saved;
   }
   async findForReport(
     condominiumId: number,
