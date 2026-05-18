@@ -22,11 +22,12 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { InfractionAccessGuard } from 'src/common/guards/infraction-access.guard';
 import { ImagesService, MAX_IMAGE_BYTES } from './images.service';
 
 @ApiTags('Infraction Images')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, InfractionAccessGuard)
 @Controller('infractions/:id/images')
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) {}

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -31,22 +32,49 @@ export class InfractionsService {
     private readonly whatsappService: WhatsappService,
     private readonly imagesService: ImagesService,
   ) {}
-  async create(dto: CreateInfractionDto) {
+  async create(
+    dto: CreateInfractionDto,
+    requesterCompanyId?: number | null,
+    isMaster = false,
+  ) {
     const unit = await this.unitsService.findOne(dto.unitId);
+    if (!isMaster) {
+      const condo = await this.condominiumsService.findOne(
+        (unit as any).condominium?.id ?? (await this.resolveCondoId(unit.id)),
+      );
+      if (condo.companyId !== requesterCompanyId) {
+        throw new ForbiddenException(
+          'A unidade informada pertence a outra empresa.',
+        );
+      }
+    }
     const infraction = this.infractionsRepository.create({
       description: dto.description,
       unit,
     });
     return this.infractionsRepository.save(infraction);
   }
+  private async resolveCondoId(unitId: number): Promise<number> {
+    const row = await this.infractionsRepository.manager
+      .createQueryBuilder()
+      .from('unit', 'u')
+      .select('u.condominiumId', 'condominiumId')
+      .where('u.id = :id', { id: unitId })
+      .getRawOne<{ condominiumId: number }>();
+    if (!row) throw new NotFoundException(`Unit #${unitId} not found.`);
+    return row.condominiumId;
+  }
   async findAll(
     pagination: PaginationDto,
     unitId?: number,
+    requesterCompanyId?: number | null,
+    isMaster = false,
   ): Promise<PaginatedResult<Infraction>> {
     const { page, limit } = pagination;
     const qb = this.infractionsRepository
       .createQueryBuilder('i')
       .leftJoinAndSelect('i.unit', 'unit')
+      .leftJoin('unit.condominium', 'condo')
       .skip((page - 1) * limit)
       .take(limit)
       .orderBy('i.occurrenceDate', 'DESC');
@@ -54,6 +82,11 @@ export class InfractionsService {
     if (unitId) {
       await this.unitsService.findOne(unitId);
       qb.where('unit.id = :unitId', { unitId });
+    }
+    if (!isMaster && requesterCompanyId) {
+      qb.andWhere('condo.companyId = :companyId', {
+        companyId: requesterCompanyId,
+      });
     }
 
     const [data, total] = await qb.getManyAndCount();

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Request,
   UseGuards,
   ParseIntPipe,
   Res,
@@ -21,6 +22,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { InfractionAccessGuard } from 'src/common/guards/infraction-access.guard';
 import { InfractionsService } from './infractions.service';
 import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
@@ -40,22 +42,32 @@ export class InfractionsController {
     description: 'Infração criada com status pending',
   })
   @Post()
-  create(@Body() dto: CreateInfractionDto) {
-    return this.infractionsService.create(dto);
+  create(@Request() req: any, @Body() dto: CreateInfractionDto) {
+    return this.infractionsService.create(
+      dto,
+      req.user.companyId,
+      !!req.user.isMaster,
+    );
   }
 
   @ApiOperation({ summary: 'Listar infrações (filtrar por unidade, paginado)' })
   @ApiResponse({ status: 200, description: 'Lista paginada de infrações' })
   @Get()
-  findAll(@Query() query: InfractionQueryDto) {
+  findAll(@Request() req: any, @Query() query: InfractionQueryDto) {
     const { unitId, ...pagination } = query;
-    return this.infractionsService.findAll(pagination, unitId);
+    return this.infractionsService.findAll(
+      pagination,
+      unitId,
+      req.user.companyId,
+      !!req.user.isMaster,
+    );
   }
 
   @ApiOperation({ summary: 'Buscar infração por ID' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Infração encontrada' })
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @UseGuards(InfractionAccessGuard)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.findOne(id);
@@ -75,6 +87,7 @@ export class InfractionsController {
   })
   @ApiResponse({ status: 502, description: 'Erro na API Gemini' })
   @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(InfractionAccessGuard)
   @Post(':id/analyze')
   analyze(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.analyze(id);
@@ -87,6 +100,7 @@ export class InfractionsController {
     description: 'PDF gerado',
     content: { 'application/pdf': {} },
   })
+  @UseGuards(InfractionAccessGuard)
   @Get(':id/document')
   async generateDocument(
     @Param('id', ParseIntPipe) id: number,
@@ -115,6 +129,7 @@ export class InfractionsController {
     description: 'Infração não está no status analyzed',
   })
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @UseGuards(InfractionAccessGuard)
   @Patch(':id/approve')
   approve(
     @Param('id', ParseIntPipe) id: number,
@@ -138,6 +153,7 @@ export class InfractionsController {
       'Infração não está no status approved ou unidade sem e-mail cadastrado',
   })
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @UseGuards(InfractionAccessGuard)
   @Post(':id/send')
   send(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.send(id);
@@ -157,6 +173,7 @@ export class InfractionsController {
     description: 'Status diferente de approved/sent ou unidade sem telefone',
   })
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @UseGuards(InfractionAccessGuard)
   @Post(':id/send-whatsapp')
   sendWhatsapp(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.sendWhatsapp(id);
@@ -165,6 +182,7 @@ export class InfractionsController {
   @ApiOperation({ summary: 'Atualizar infração' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Infração atualizada' })
+  @UseGuards(InfractionAccessGuard)
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -176,6 +194,7 @@ export class InfractionsController {
   @ApiOperation({ summary: 'Remover infração' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Infração removida' })
+  @UseGuards(InfractionAccessGuard)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.infractionsService.remove(id);
