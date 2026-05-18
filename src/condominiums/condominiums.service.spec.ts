@@ -31,6 +31,7 @@ describe('CondominiumsService', () => {
     findOneBy: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+    softDelete: jest.Mock;
   };
   let ucRepo: {
     create: jest.Mock;
@@ -49,6 +50,7 @@ describe('CondominiumsService', () => {
       findOneBy: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      softDelete: jest.fn(),
     };
     ucRepo = {
       create: jest.fn(),
@@ -197,11 +199,11 @@ describe('CondominiumsService', () => {
   });
 
   describe('remove', () => {
-    it('deve remover com sucesso', async () => {
+    it('deve soft-deletar com sucesso', async () => {
       condoRepo.findOneBy.mockResolvedValue({ id: 1 });
-      condoRepo.delete.mockResolvedValue(undefined);
+      condoRepo.softDelete.mockResolvedValue(undefined);
       await expect(service.remove(1)).resolves.toBeUndefined();
-      expect(condoRepo.delete).toHaveBeenCalledWith(1);
+      expect(condoRepo.softDelete).toHaveBeenCalledWith(1);
     });
 
     it('deve lançar NotFoundException quando não existir', async () => {
@@ -209,7 +211,7 @@ describe('CondominiumsService', () => {
       await expect(service.remove(999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
-      expect(condoRepo.delete).not.toHaveBeenCalled();
+      expect(condoRepo.softDelete).not.toHaveBeenCalled();
     });
   });
 

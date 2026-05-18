@@ -3,6 +3,7 @@ import { InfractionImage } from './infraction-image.entity';
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   ManyToOne,
   OneToMany,
@@ -65,4 +66,6 @@ export class Infraction {
   unit: Unit;
   @OneToMany(() => InfractionImage, (image) => image.infraction)
   images: InfractionImage[];
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 }

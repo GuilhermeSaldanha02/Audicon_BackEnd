@@ -1,5 +1,6 @@
 import {
   Column,
+  DeleteDateColumn,
   Entity,
   Index,
   ManyToOne,
@@ -48,4 +49,7 @@ export class Condominium {
 
   @OneToMany(() => UserCondominium, (uc) => uc.condominium)
   memberships: UserCondominium[];
+
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 }

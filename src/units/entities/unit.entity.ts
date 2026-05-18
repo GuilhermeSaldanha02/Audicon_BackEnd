@@ -2,6 +2,7 @@ import { Condominium } from '../../condominiums/entities/condominium.entity';
 import { Infraction } from '../../infractions/entities/infraction.entity';
 import {
   Column,
+  DeleteDateColumn,
   Entity,
   ManyToOne,
   OneToMany,
@@ -23,4 +24,6 @@ export class Unit {
   condominium: Condominium;
   @OneToMany(() => Infraction, (infraction) => infraction.unit)
   infractions: Infraction[];
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 }
