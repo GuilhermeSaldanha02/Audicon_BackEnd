@@ -12,7 +12,6 @@ describe('CompaniesService', () => {
   let service: CompaniesService;
   let companiesRepo: any;
   let usersRepo: any;
-  let ucRepo: any;
   let ucQb: any;
 
   beforeEach(async () => {
@@ -58,7 +57,6 @@ describe('CompaniesService', () => {
     service = module.get(CompaniesService);
     companiesRepo = module.get(getRepositoryToken(Company));
     usersRepo = module.get(getRepositoryToken(User));
-    ucRepo = module.get(getRepositoryToken(UserCondominium));
   });
 
   describe('create', () => {
