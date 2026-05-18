@@ -5,6 +5,7 @@ import { QueryFailedError } from 'typeorm';
 import { CompaniesService } from './companies.service';
 import { Company } from './entities/company.entity';
 import { User } from '../users/entities/user.entity';
+import { AuditService } from '../audit/audit.service';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
@@ -29,6 +30,13 @@ describe('CompaniesService', () => {
           useValue: {
             create: jest.fn((dto) => dto),
             save: jest.fn(),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            log: jest.fn(),
+            logAsync: jest.fn().mockResolvedValue(null),
           },
         },
       ],

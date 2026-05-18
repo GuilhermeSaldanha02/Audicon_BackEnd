@@ -15,6 +15,7 @@ import { MailModule } from 'src/mail/mail.module';
 import { WhatsappModule } from 'src/whatsapp/whatsapp.module';
 import { RbacModule } from '../common/rbac.module';
 import { InfractionAccessGuard } from '../common/guards/infraction-access.guard';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { InfractionAccessGuard } from '../common/guards/infraction-access.guard'
     MailModule,
     WhatsappModule,
     RbacModule,
+    AuditModule,
   ],
   controllers: [InfractionsController, ReportsController, ImagesController],
   providers: [InfractionsService, ImagesService, InfractionAccessGuard],

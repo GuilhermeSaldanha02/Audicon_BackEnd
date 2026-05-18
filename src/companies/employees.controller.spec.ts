@@ -25,8 +25,10 @@ describe('EmployeesController', () => {
     controller = module.get(EmployeesController);
   });
 
-  it('create delega companyId + dto', async () => {
-    const req: any = { user: { id: 1, companyId: 3 } };
+  it('create delega companyId + dto + actor', async () => {
+    const req: any = {
+      user: { id: 1, email: 'admin@x.com', companyId: 3, isMaster: false },
+    };
     const dto: any = { nome: 'F1', email: 'f1@x.com' };
     service.createEmployee.mockResolvedValue({
       id: 10,
@@ -35,7 +37,11 @@ describe('EmployeesController', () => {
       tempPassword: 'abc',
     });
     const result = await controller.create(req, dto);
-    expect(service.createEmployee).toHaveBeenCalledWith(3, dto);
+    expect(service.createEmployee).toHaveBeenCalledWith(
+      3,
+      dto,
+      expect.objectContaining({ userId: 1, companyId: 3 }),
+    );
     expect(result.tempPassword).toBe('abc');
   });
 

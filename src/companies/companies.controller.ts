@@ -5,8 +5,10 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Request,
   UseGuards,
 } from '@nestjs/common';
+import { Actor } from '../audit/audit.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -36,8 +38,14 @@ export class CompaniesController {
   })
   @ApiResponse({ status: 409, description: 'CNPJ ou e-mail já cadastrados' })
   @Post()
-  create(@Body() dto: CreateCompanyDto) {
-    return this.companiesService.create(dto);
+  create(@Request() req: any, @Body() dto: CreateCompanyDto) {
+    const actor: Actor = {
+      userId: req.user.id,
+      email: req.user.email,
+      isMaster: !!req.user.isMaster,
+      companyId: req.user.companyId ?? null,
+    };
+    return this.companiesService.create(dto, actor);
   }
 
   @ApiOperation({ summary: 'Listar todas as empresas (apenas master)' })

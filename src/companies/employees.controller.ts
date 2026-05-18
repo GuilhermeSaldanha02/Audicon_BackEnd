@@ -36,7 +36,12 @@ export class EmployeesController {
   @ApiResponse({ status: 409, description: 'E-mail já cadastrado' })
   @Post()
   create(@Request() req: any, @Body() dto: CreateEmployeeDto) {
-    return this.companiesService.createEmployee(req.user.companyId, dto);
+    return this.companiesService.createEmployee(req.user.companyId, dto, {
+      userId: req.user.id,
+      email: req.user.email,
+      isMaster: !!req.user.isMaster,
+      companyId: req.user.companyId,
+    });
   }
 
   @ApiOperation({

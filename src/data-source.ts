@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
+import { AuditLog } from './audit/entities/audit-log.entity';
 import { Company } from './companies/entities/company.entity';
 import { Condominium } from './condominiums/entities/condominium.entity';
 import { Unit } from './units/entities/unit.entity';
@@ -18,6 +19,7 @@ const appDataSourceOptions = {
   password: requireEnv('DB_PASSWORD'),
   database: requireEnv('DB_DATABASE'),
   entities: [
+    AuditLog,
     Company,
     Condominium,
     Unit,

@@ -9,6 +9,7 @@ import { CondominiumsService } from '../condominiums/condominiums.service';
 import { MailService } from '../mail/mail.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { ImagesService } from './images.service';
+import { AuditService } from '../audit/audit.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 describe('InfractionsService', () => {
   let service: InfractionsService;
@@ -115,6 +116,13 @@ describe('InfractionsService', () => {
           provide: ImagesService,
           useValue: {
             getContentBuffers: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            log: jest.fn(),
+            logAsync: jest.fn().mockResolvedValue(null),
           },
         },
       ],

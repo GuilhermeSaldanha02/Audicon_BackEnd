@@ -46,12 +46,19 @@ describe('InfractionsController', () => {
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
-  const mockReq: any = { user: { id: 1, companyId: 1, isMaster: false } };
-  it('create chama service.create com dto + companyId + isMaster', async () => {
+  const mockReq: any = {
+    user: { id: 1, email: 'u@x.com', companyId: 1, isMaster: false },
+  };
+  it('create chama service.create com dto + companyId + isMaster + actor', async () => {
     const dto: any = { description: 'Teste', unitId: 10 };
     service.create.mockResolvedValue({ id: 1, ...dto });
     const result = await controller.create(mockReq, dto);
-    expect(service.create).toHaveBeenCalledWith(dto, 1, false);
+    expect(service.create).toHaveBeenCalledWith(
+      dto,
+      1,
+      false,
+      expect.any(Object),
+    );
     expect(result).toEqual({ id: 1, ...dto });
   });
   it('findAll sem unitId repassa paginação + companyId', async () => {
@@ -107,8 +114,8 @@ describe('InfractionsController', () => {
   });
   it('approve chama service.approve com id e dto vazio', async () => {
     service.approve.mockResolvedValue({ id: 8, status: 'approved' });
-    const result = await controller.approve(8, {});
-    expect(service.approve).toHaveBeenCalledWith(8, {});
+    const result = await controller.approve(mockReq, 8, {});
+    expect(service.approve).toHaveBeenCalledWith(8, {}, expect.any(Object));
     expect(result).toEqual({ id: 8, status: 'approved' });
   });
   it('approve repassa override de campos ao service', async () => {
@@ -117,8 +124,8 @@ describe('InfractionsController', () => {
       suggestedPenalty: 'Multa',
     };
     service.approve.mockResolvedValue({ id: 9, status: 'approved', ...dto });
-    const result = await controller.approve(9, dto);
-    expect(service.approve).toHaveBeenCalledWith(9, dto);
+    const result = await controller.approve(mockReq, 9, dto);
+    expect(service.approve).toHaveBeenCalledWith(9, dto, expect.any(Object));
     expect(result.status).toBe('approved');
   });
   it('sendWhatsapp chama service.sendWhatsapp com id', async () => {
@@ -126,14 +133,14 @@ describe('InfractionsController', () => {
       id: 11,
       whatsappSentAt: new Date(),
     });
-    const result = await controller.sendWhatsapp(11);
-    expect(service.sendWhatsapp).toHaveBeenCalledWith(11);
+    const result = await controller.sendWhatsapp(mockReq, 11);
+    expect(service.sendWhatsapp).toHaveBeenCalledWith(11, expect.any(Object));
     expect(result.id).toBe(11);
   });
   it('send chama service.send com id', async () => {
     service.send.mockResolvedValue({ id: 10, status: 'sent' });
-    const result = await controller.send(10);
-    expect(service.send).toHaveBeenCalledWith(10);
+    const result = await controller.send(mockReq, 10);
+    expect(service.send).toHaveBeenCalledWith(10, expect.any(Object));
     expect(result).toEqual({ id: 10, status: 'sent' });
   });
   it('update chama service.update com id e dto', async () => {
@@ -145,8 +152,8 @@ describe('InfractionsController', () => {
   });
   it('remove chama service.remove com id', async () => {
     service.remove.mockResolvedValue(undefined);
-    const result = await controller.remove(7);
-    expect(service.remove).toHaveBeenCalledWith(7);
+    const result = await controller.remove(mockReq, 7);
+    expect(service.remove).toHaveBeenCalledWith(7, expect.any(Object));
     expect(result).toBeUndefined();
   });
 });
