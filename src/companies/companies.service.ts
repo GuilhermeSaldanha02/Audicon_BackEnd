@@ -1,11 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { AuditService, Actor } from '../audit/audit.service';
+import { UserCondominium } from '../users/entities/user-condominium.entity';
+import { UserRole } from '../common/enums/user-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -30,6 +34,8 @@ export class CompaniesService {
     private readonly companiesRepository: Repository<Company>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(UserCondominium)
+    private readonly ucRepository: Repository<UserCondominium>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -151,6 +157,65 @@ export class CompaniesService {
       order: { id: 'ASC' },
     });
     return users;
+  }
+
+  async resetPassword(opts: {
+    companyId: number;
+    targetUserId: number;
+    requesterId?: number;
+    enforceNotAdmin: boolean;
+    actor: Actor;
+  }): Promise<{ id: number; email: string; tempPassword: string }> {
+    if (opts.requesterId === opts.targetUserId) {
+      throw new BadRequestException(
+        'Não é possível resetar a própria senha por esta rota.',
+      );
+    }
+    const target = await this.usersRepository.findOne({
+      where: { id: opts.targetUserId },
+    });
+    if (!target) {
+      throw new NotFoundException(
+        `Usuário #${opts.targetUserId} não encontrado.`,
+      );
+    }
+    if (target.companyId !== opts.companyId) {
+      throw new ForbiddenException('Usuário não pertence à empresa informada.');
+    }
+    if (target.isMaster) {
+      throw new ForbiddenException(
+        'Não é possível resetar senha de usuário master por endpoint.',
+      );
+    }
+    if (opts.enforceNotAdmin) {
+      const adminCount = await this.ucRepository
+        .createQueryBuilder('uc')
+        .leftJoin('uc.condominium', 'condo')
+        .where('uc.userId = :id', { id: opts.targetUserId })
+        .andWhere('uc.role = :role', { role: UserRole.ADMIN })
+        .andWhere('condo.companyId = :cid', { cid: opts.companyId })
+        .getCount();
+      if (adminCount > 0) {
+        throw new ForbiddenException(
+          'Apenas master pode resetar senha de usuário ADMIN.',
+        );
+      }
+    }
+    const tempPassword = generateTempPassword();
+    target.senha = await bcrypt.hash(tempPassword, 10);
+    await this.usersRepository.save(target);
+    this.auditService.log({
+      actor: opts.actor,
+      action: 'EMPLOYEE_PASSWORD_RESET',
+      entity: 'employee',
+      entityId: target.id,
+      context: { email: target.email },
+    });
+    return {
+      id: target.id,
+      email: target.email,
+      tempPassword,
+    };
   }
 
   async findOne(id: number): Promise<Company> {
