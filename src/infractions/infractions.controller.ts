@@ -28,6 +28,7 @@ import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
 import { ApproveInfractionDto } from './dto/approve-infraction.dto';
 import { InfractionQueryDto } from './dto/infraction-query.dto';
+import { CsvExportQueryDto } from './dto/csv-export-query.dto';
 import { Actor } from 'src/audit/audit.service';
 
 function toActor(req: any): Actor {
@@ -72,6 +73,30 @@ export class InfractionsController {
       req.user.companyId,
       !!req.user.isMaster,
     );
+  }
+
+  @ApiOperation({ summary: 'Exportar infrações em CSV (sem paginação)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Arquivo CSV',
+    content: { 'text/csv': {} },
+  })
+  @Get('export')
+  async exportCsv(
+    @Request() req: any,
+    @Query() query: CsvExportQueryDto,
+    @Res() res: Response,
+  ) {
+    const csv = await this.infractionsService.exportCsv(
+      query,
+      req.user.companyId,
+      !!req.user.isMaster,
+    );
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename=infractions.csv',
+    });
+    res.end(csv);
   }
 
   @ApiOperation({ summary: 'Buscar infração por ID' })

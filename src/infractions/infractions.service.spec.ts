@@ -240,6 +240,27 @@ describe('InfractionsService', () => {
       expect(result.description).toBe('Nova');
     });
   });
+  describe('exportCsv', () => {
+    it('retorna header + linha por infração', async () => {
+      (qb.getMany as jest.Mock).mockResolvedValue([mockInfraction]);
+      const csv = await service.exportCsv({}, 1, false);
+      const lines = csv.split('\n');
+      expect(lines[0]).toBe(
+        'id,unidade,condominio,status,descricao,data_ocorrencia,aprovado_em,enviado_em',
+      );
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain('pending');
+    });
+
+    it('retorna só o header quando não há registros', async () => {
+      (qb.getMany as jest.Mock).mockResolvedValue([]);
+      const csv = await service.exportCsv({}, 1, false);
+      expect(csv).toBe(
+        'id,unidade,condominio,status,descricao,data_ocorrencia,aprovado_em,enviado_em',
+      );
+    });
+  });
+
   describe('remove', () => {
     it('soft-deleta após validar existência', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue({ ...mockInfraction });
