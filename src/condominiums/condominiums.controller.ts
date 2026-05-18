@@ -51,7 +51,11 @@ export class CondominiumsController {
     @Request() req: any,
     @Body() createCondominiumDto: CreateCondominiumDto,
   ) {
-    return this.condominiumsService.create(createCondominiumDto, req.user.id);
+    return this.condominiumsService.create(
+      createCondominiumDto,
+      req.user.id,
+      req.user.companyId,
+    );
   }
 
   @ApiOperation({ summary: 'Listar condomínios do usuário autenticado' })
@@ -61,7 +65,11 @@ export class CondominiumsController {
   })
   @Get()
   findAll(@Request() req: any, @Query() pagination: PaginationDto) {
-    return this.condominiumsService.findAll(req.user.id, pagination);
+    return this.condominiumsService.findAll(
+      req.user.id,
+      pagination,
+      req.user.companyId,
+    );
   }
 
   @ApiOperation({ summary: 'Buscar condomínio por ID' })

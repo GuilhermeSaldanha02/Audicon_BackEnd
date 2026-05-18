@@ -3,7 +3,7 @@ import { CondominiumsController } from './condominiums.controller';
 import { CondominiumsService } from './condominiums.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 
-const mockReq = { user: { id: 42 } };
+const mockReq = { user: { id: 42, companyId: 1 } };
 
 describe('CondominiumsController', () => {
   let controller: CondominiumsController;
@@ -51,7 +51,11 @@ describe('CondominiumsController', () => {
     service.create.mockResolvedValue(created);
     const result = await controller.create(mockReq, dto);
     expect(result).toEqual(created);
-    expect(service.create).toHaveBeenCalledWith(dto, mockReq.user.id);
+    expect(service.create).toHaveBeenCalledWith(
+      dto,
+      mockReq.user.id,
+      mockReq.user.companyId,
+    );
   });
 
   it('findAll deve delegar para o service com userId e paginação', async () => {
@@ -65,7 +69,11 @@ describe('CondominiumsController', () => {
     service.findAll.mockResolvedValue(paginated);
     const result = await controller.findAll(mockReq, pagination);
     expect(result).toEqual(paginated);
-    expect(service.findAll).toHaveBeenCalledWith(mockReq.user.id, pagination);
+    expect(service.findAll).toHaveBeenCalledWith(
+      mockReq.user.id,
+      pagination,
+      mockReq.user.companyId,
+    );
   });
 
   it('findOne deve delegar para o service com id numérico', async () => {

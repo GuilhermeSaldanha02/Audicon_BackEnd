@@ -1,6 +1,14 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Unit } from '../../units/entities/unit.entity';
 import { UserCondominium } from '../../users/entities/user-condominium.entity';
+import { Company } from '../../companies/entities/company.entity';
 
 @Entity()
 export class Condominium {
@@ -12,6 +20,16 @@ export class Condominium {
 
   @Column({ unique: true })
   cnpj: string;
+
+  @Index()
+  @ManyToOne(() => Company, (company) => company.condominiums, {
+    nullable: false,
+    onDelete: 'RESTRICT',
+  })
+  company: Company;
+
+  @Column({ type: 'integer' })
+  companyId: number;
 
   @Column()
   address: string;

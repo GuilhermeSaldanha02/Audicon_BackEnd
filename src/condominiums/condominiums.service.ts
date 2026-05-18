@@ -27,10 +27,21 @@ export class CondominiumsService {
     private readonly usersService: UsersService,
   ) {}
 
-  async create(createCondominiumDto: CreateCondominiumDto, userId: number) {
+  async create(
+    createCondominiumDto: CreateCondominiumDto,
+    userId: number,
+    companyId: number,
+  ) {
+    if (!companyId) {
+      throw new BadRequestException(
+        'Usuário sem empresa associada não pode criar condomínio.',
+      );
+    }
     try {
-      const newCondominium =
-        this.condominiumsRepository.create(createCondominiumDto);
+      const newCondominium = this.condominiumsRepository.create({
+        ...createCondominiumDto,
+        companyId,
+      });
       const saved = await this.condominiumsRepository.save(newCondominium);
 
       const membership = this.ucRepository.create({
@@ -57,11 +68,16 @@ export class CondominiumsService {
   async findAll(
     userId: number,
     pagination: PaginationDto,
+    companyId?: number | null,
   ): Promise<PaginatedResult<Condominium>> {
     const { page, limit } = pagination;
-    const [data, total] = await this.condominiumsRepository
+    const qb = this.condominiumsRepository
       .createQueryBuilder('c')
-      .innerJoin('c.memberships', 'uc', 'uc.userId = :userId', { userId })
+      .innerJoin('c.memberships', 'uc', 'uc.userId = :userId', { userId });
+    if (companyId) {
+      qb.andWhere('c.companyId = :companyId', { companyId });
+    }
+    const [data, total] = await qb
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
@@ -88,10 +104,15 @@ export class CondominiumsService {
   }
 
   async addMember(condominiumId: number, dto: AddMemberDto) {
-    await this.findOne(condominiumId);
+    const condominium = await this.findOne(condominiumId);
     const user = await this.usersService.findOneByEmail(dto.email);
     if (!user) {
       throw new NotFoundException(`User with email ${dto.email} not found.`);
+    }
+    if (user.companyId !== condominium.companyId) {
+      throw new BadRequestException(
+        'O usuário não pertence à mesma empresa deste condomínio.',
+      );
     }
 
     const existing = await this.ucRepository.findOne({
