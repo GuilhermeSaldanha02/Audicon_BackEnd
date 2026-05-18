@@ -14,6 +14,7 @@ import { CondominiumsModule } from 'src/condominiums/condominiums.module';
 import { MailModule } from 'src/mail/mail.module';
 import { WhatsappModule } from 'src/whatsapp/whatsapp.module';
 import { RbacModule } from '../common/rbac.module';
+import { InfractionAccessGuard } from '../common/guards/infraction-access.guard';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { RbacModule } from '../common/rbac.module';
     RbacModule,
   ],
   controllers: [InfractionsController, ReportsController, ImagesController],
-  providers: [InfractionsService, ImagesService],
+  providers: [InfractionsService, ImagesService, InfractionAccessGuard],
   exports: [ImagesService],
 })
 export class InfractionsModule {}

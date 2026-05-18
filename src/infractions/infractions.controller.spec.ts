@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InfractionsController } from './infractions.controller';
 import { InfractionsService } from './infractions.service';
+import { InfractionAccessGuard } from '../common/guards/infraction-access.guard';
 describe('InfractionsController', () => {
   let controller: InfractionsController;
   let service: {
@@ -36,27 +37,33 @@ describe('InfractionsController', () => {
           useValue: service,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(InfractionAccessGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
     controller = module.get<InfractionsController>(InfractionsController);
   });
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
-  it('create chama service.create com dto', async () => {
+  const mockReq: any = { user: { id: 1, companyId: 1, isMaster: false } };
+  it('create chama service.create com dto + companyId + isMaster', async () => {
     const dto: any = { description: 'Teste', unitId: 10 };
     service.create.mockResolvedValue({ id: 1, ...dto });
-    const result = await controller.create(dto);
-    expect(service.create).toHaveBeenCalledWith(dto);
+    const result = await controller.create(mockReq, dto);
+    expect(service.create).toHaveBeenCalledWith(dto, 1, false);
     expect(result).toEqual({ id: 1, ...dto });
   });
-  it('findAll sem unitId repassa paginação ao service', async () => {
+  it('findAll sem unitId repassa paginação + companyId', async () => {
     const query: any = { page: 1, limit: 20 };
     const paginated = { data: [{ id: 1 }], total: 1, page: 1, limit: 20 };
     service.findAll.mockResolvedValue(paginated);
-    const result = await controller.findAll(query);
+    const result = await controller.findAll(mockReq, query);
     expect(service.findAll).toHaveBeenCalledWith(
       { page: 1, limit: 20 },
       undefined,
+      1,
+      false,
     );
     expect(result).toEqual(paginated);
   });
@@ -64,8 +71,13 @@ describe('InfractionsController', () => {
     const query: any = { page: 1, limit: 20, unitId: 10 };
     const paginated = { data: [{ id: 2 }], total: 1, page: 1, limit: 20 };
     service.findAll.mockResolvedValue(paginated);
-    const result = await controller.findAll(query);
-    expect(service.findAll).toHaveBeenCalledWith({ page: 1, limit: 20 }, 10);
+    const result = await controller.findAll(mockReq, query);
+    expect(service.findAll).toHaveBeenCalledWith(
+      { page: 1, limit: 20 },
+      10,
+      1,
+      false,
+    );
     expect(result).toEqual(paginated);
   });
   it('findOne chama service.findOne', async () => {

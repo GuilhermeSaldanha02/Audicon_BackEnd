@@ -132,7 +132,7 @@ describe('InfractionsService', () => {
     expect(service).toBeDefined();
   });
   describe('create', () => {
-    it('cria infração com unidade existente', async () => {
+    it('cria infração quando master (bypassa validação de empresa)', async () => {
       const dto = { description: 'Teste', unitId: 10 } as any;
       (units.findOne as jest.Mock).mockResolvedValue(mockInfraction.unit);
       (repo.create as jest.Mock).mockReturnValue({
@@ -140,11 +140,25 @@ describe('InfractionsService', () => {
         id: undefined,
       });
       (repo.save as jest.Mock).mockResolvedValue({ ...mockInfraction });
-      const result = await service.create(dto);
-      expect(units.findOne).toHaveBeenCalledWith(10);
-      expect(repo.create).toHaveBeenCalled();
-      expect(repo.save).toHaveBeenCalled();
+      const result = await service.create(dto, null, true);
       expect(result).toEqual(mockInfraction);
+    });
+    it('cria infração quando unidade pertence à mesma empresa do solicitante', async () => {
+      const dto = { description: 'Teste', unitId: 10 } as any;
+      (units.findOne as jest.Mock).mockResolvedValue(mockInfraction.unit);
+      (condos.findOne as jest.Mock).mockResolvedValue({ id: 5, companyId: 1 });
+      (repo.create as jest.Mock).mockReturnValue({ ...mockInfraction });
+      (repo.save as jest.Mock).mockResolvedValue({ ...mockInfraction });
+      const result = await service.create(dto, 1, false);
+      expect(result).toEqual(mockInfraction);
+    });
+    it('rejeita quando unidade pertence a outra empresa', async () => {
+      const dto = { description: 'Teste', unitId: 10 } as any;
+      (units.findOne as jest.Mock).mockResolvedValue(mockInfraction.unit);
+      (condos.findOne as jest.Mock).mockResolvedValue({ id: 5, companyId: 2 });
+      await expect(service.create(dto, 1, false)).rejects.toThrow(
+        /outra empresa/,
+      );
     });
   });
   describe('findAll', () => {
