@@ -20,6 +20,7 @@ import { ImagesService } from './images.service';
 import { AuditService, Actor } from 'src/audit/audit.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
+import { CsvExportQueryDto } from './dto/csv-export-query.dto';
 @Injectable()
 export class InfractionsService {
   constructor(
@@ -105,6 +106,65 @@ export class InfractionsService {
     const [data, total] = await qb.getManyAndCount();
     return { data, total, page, limit };
   }
+  async exportCsv(
+    query: CsvExportQueryDto,
+    requesterCompanyId?: number | null,
+    isMaster = false,
+  ): Promise<string> {
+    const qb = this.infractionsRepository
+      .createQueryBuilder('i')
+      .leftJoinAndSelect('i.unit', 'unit')
+      .leftJoinAndSelect('unit.condominium', 'condo')
+      .orderBy('i.occurrenceDate', 'DESC');
+
+    if (query.unitId) {
+      qb.andWhere('unit.id = :unitId', { unitId: query.unitId });
+    }
+    if (query.status) {
+      qb.andWhere('i.status = :status', { status: query.status });
+    }
+    if (query.from) {
+      qb.andWhere('i.occurrenceDate >= :from', { from: query.from });
+    }
+    if (query.to) {
+      qb.andWhere('i.occurrenceDate <= :to', { to: query.to });
+    }
+    if (!isMaster && requesterCompanyId) {
+      qb.andWhere('condo.companyId = :companyId', {
+        companyId: requesterCompanyId,
+      });
+    }
+
+    const rows = await qb.getMany();
+
+    const escape = (v: unknown) => {
+      if (v == null) return '';
+      const s = String(v).replace(/"/g, '""');
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s}"`
+        : s;
+    };
+    const fmt = (d: Date | null | undefined) =>
+      d ? new Date(d).toISOString() : '';
+
+    const header =
+      'id,unidade,condominio,status,descricao,data_ocorrencia,aprovado_em,enviado_em';
+    const lines = rows.map((r) =>
+      [
+        r.id,
+        escape(r.unit?.identifier),
+        escape(r.unit?.condominium?.name),
+        r.status,
+        escape(r.description),
+        fmt(r.occurrenceDate),
+        fmt(r.approvedAt),
+        fmt(r.sentAt),
+      ].join(','),
+    );
+
+    return [header, ...lines].join('\n');
+  }
+
   async findOne(id: number) {
     const infraction = await this.infractionsRepository.findOne({
       where: { id },
