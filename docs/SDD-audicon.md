@@ -1,6 +1,6 @@
 # SDD — Audicon API
 **Spec-Driven Development Document**
-Versão: 1.1 · Última atualização: 2026-05-15
+Versão: 2.0 · Última atualização: 2026-05-18
 
 ---
 
@@ -19,73 +19,151 @@ Estrutura:
 
 ## 1. Contexto do Projeto
 
-**Audicon** é uma API RESTful para gerenciamento de condomínios com diferencial em análise de infrações via IA e geração de relatórios PDF.
+**Audicon** é um **SaaS multi-tenant** para gestão de infrações em condomínios. Administradoras (empresas) usam o sistema para que seus funcionários registrem infrações por unidade, gerem documentos com auxílio de IA, e enviem o aviso ao morador por e-mail e/ou WhatsApp.
 
-**Domínios principais:** Usuários, Condomínios, Unidades habitacionais, Infrações.
-**Diferenciais:** Análise por IA (Google Generative AI) e exportação de PDF consolidado.
-**Forma de consumo atual:** Backend-only. Frontend será desenvolvido em fase posterior — toda decisão de API deve assumir que clientes ainda não existem, portanto há margem para ajustes de contrato sem custo de breaking change externo.
+**Hierarquia de tenancy:**
+```
+Master (Audicon)
+  ↓ cria empresas
+Company (Administradora)
+  ↓ tem funcionários
+User (funcionário com membership em condomínios)
+  ↓ gerencia
+Condominium → Unit → Morador (residentEmail/residentPhone)
+                      ↓ recebe
+                      Infraction (com imagens) → análise IA → aprovação humana → envio (e-mail + WhatsApp)
+```
+
+**Diferenciais técnicos:**
+- **Análise por IA contextual** (Google Gemini) considerando o regimento PDF do condomínio + histórico de reincidências da unidade
+- **Geração de PDF** com pdfkit (documento individual com imagens + relatório consolidado em stream)
+- **Notificação dual** ao morador: e-mail (Resend) com PDF anexo + WhatsApp (Z-API) como alerta
+- **Multi-tenant isolation** em duas camadas: filtro por `companyId` no banco + `InfractionAccessGuard` para acesso cross-tenant
+- **Audit log** de ações sensíveis com escopo por empresa
+
+**Forma de consumo atual:** API consumida por frontend Next.js 15 próprio (`Audicon_Web`). Existem clientes em produção (early adopters) — alterações de contrato exigem coordenação com o frontend.
 
 ---
 
 ## 2. Stack Técnica (fixa)
 
+### 2.1 Backend (`Audicon_BackEnd`)
+
 | Camada | Tecnologia | Observação |
 |---|---|---|
-| Runtime | Node.js | **≥ 20** (fixado em `.nvmrc` e `package.json#engines`). Node 18 não suportado: `@nestjs/typeorm` v11 usa `crypto.randomUUID()` global ausente nessa versão. |
-| Framework | NestJS | Arquitetura modular padrão |
-| Linguagem | TypeScript | `strict: true` esperado |
-| Banco | PostgreSQL | |
-| ORM | TypeORM | `synchronize: false` — **nunca alterar** |
-| Auth | JWT (`@nestjs/passport`, `passport-jwt`, `passport-local`, `bcrypt`) | |
-| IA | `@google/generative-ai` | Encapsulado em `IaModule` |
-| PDF | `pdfkit` | Encapsulado em `PdfModule` |
-| Testes | Jest (unit + e2e + coverage) | Infraestrutura pronta |
+| Runtime | Node.js | **≥ 20** (fixado em `.nvmrc` e `package.json#engines`) |
+| Framework | NestJS 10 | Arquitetura modular |
+| Linguagem | TypeScript | `strict: true` |
+| Banco | PostgreSQL 16 | Em Docker (`audicon_db`) |
+| ORM | TypeORM 0.3 | `synchronize: false` — **nunca alterar** |
+| Auth | JWT (`@nestjs/passport`, `passport-jwt`, `passport-local`, `bcrypt`) | Claims: `sub`, `email`, `companyId`, `isMaster` |
+| IA | `@google/generative-ai` | `IaModule` — Gemini 2.5-flash, prompts versionados (v1/v2/v3) |
+| PDF | `pdfkit` | `PdfModule` — buffer + stream + embed de imagens |
+| E-mail | `resend` | `MailModule` — modo mock sem `RESEND_API_KEY` |
+| WhatsApp | Fetch direto Z-API | `WhatsappModule` — modo mock sem `ZAPI_*` |
+| Upload | `@nestjs/platform-express` (multer) | Imagens em bytea (PDF regimento também) |
+| Validação env | `joi` | Schema em `src/common/config/env.schema.ts` |
+| Logger | `nestjs-pino` | Logger estruturado |
+| Testes | Jest (unit + e2e + coverage) | Thresholds por módulo em `package.json#jest` |
+| Throttle | `@nestjs/throttler` | Global 100/min + override em `/infractions/:id/analyze` |
+| Containerização | Docker + docker-compose | `api` + `db` |
+
+### 2.2 Frontend (`Audicon_Web`)
+
+| Camada | Tecnologia |
+|---|---|
+| Framework | Next.js 15 (App Router) |
+| UI | React 19 + shadcn/ui (`@base-ui/react`) + Tailwind CSS |
+| Estado servidor | TanStack Query 5 |
+| Forms | React Hook Form + Zod |
+| HTTP | axios |
+| Notifications | sonner (toasts) |
 
 **Restrições inegociáveis:**
 - Não usar bibliotecas alternativas para os papéis acima sem justificativa registrada em ADR.
 - Não habilitar `synchronize: true` em hipótese alguma — toda mudança de schema passa por migration.
-- Não commitar `.env`.
+- Não commitar `.env`, chaves de API ou dumps de banco.
+- Nunca desabilitar o `ValidationPipe` global ou `forbidNonWhitelisted: true`.
 
 ---
 
 ## 3. Arquitetura de Domínio
 
-### 3.1 Mapa de módulos confirmados pelo relatório
+### 3.1 Mapa de módulos atual
 
 ```
 src/
-├── auth/            → AuthModule  (JWT, login, validação de token)
-├── users/           → UsersModule (CRUD de usuários)
-├── condominiums/    → CondominiumsModule (CRUD de condomínios)
-├── units/           → UnitsModule (CRUD de unidades, FK → condominium)
-├── infractions/     → InfractionsModule (CRUD de infrações, FK → unit)
-├── ia/              → IaModule (análise de infrações via Gemini)
-├── pdf/             → PdfModule (geração de relatórios)
-└── common/          → filtros, interceptors, pipes globais
+├── auth/            → AuthModule (JWT, login, JwtStrategy/LocalStrategy)
+├── users/           → UsersModule (CRUD users + UserCondominium membership)
+├── companies/       → CompaniesModule (master cria empresas + admin cria funcionários)
+├── condominiums/    → CondominiumsModule (CRUD condomínios + members + regimento PDF)
+├── units/           → UnitsModule (CRUD unidades, nested em condomínios)
+├── infractions/     → InfractionsModule (CRUD + analyze + approve + send + send-whatsapp + images)
+├── ia/              → IaModule (Gemini, prompts v1/v2/v3, extractRegimentoText via pdf-parse)
+├── pdf/             → PdfModule (pdfkit — documento individual com imagens + report stream)
+├── mail/            → MailModule (Resend; mock em dev/test sem RESEND_API_KEY)
+├── whatsapp/        → WhatsappModule (Z-API; mock em dev/test sem ZAPI_*)
+├── audit/           → AuditModule (log de ações sensíveis com escopo por empresa)
+├── health/          → HealthModule (/health/live + /health/ready)
+├── migrations/      → migrations TypeORM versionadas
+└── common/          → filters, interceptors, pipes, guards (RolesGuard, MasterGuard, CompanyAdminGuard, InfractionAccessGuard), enums, dto base, config
 ```
 
-### 3.2 Relacionamentos esperados (a confirmar na Discovery)
+### 3.2 Entidades e relacionamentos
 
 ```
-User ─┬─ (autentica) ─► JWT
-      └─ (gerencia, papel a definir) ─► Condominium
+Company 1 ─── N User                  (user.companyId FK; nullable para master)
+Company 1 ─── N Condominium           (condo.companyId FK NOT NULL)
+
+User N ──── N Condominium  (via UserCondominium com role ADMIN/MANAGER/RESIDENT)
 
 Condominium 1 ─── N Unit
-Unit         1 ─── N Infraction
-Infraction   N ─── 1 Unit
-Infraction   ──► IaService  (análise)
-Infraction[] ──► PdfService (relatório consolidado)
+Condominium 1 ─── 1 regimentoContent (bytea, select:false)
+
+Unit 1 ─── N Infraction
+Unit fields: identifier, ownerName, residentEmail, residentPhone
+
+Infraction 1 ─── N InfractionImage   (bytea, select:false; max 10/infração, 5MB cada)
+Infraction status: pending → analyzed → approved → sent
+Infraction fields: approvedAt, sentAt, whatsappSentAt (canal paralelo)
+
+AuditLog N (independente; entries com userId, companyId, action, entity, entityId, context jsonb)
 ```
 
-> ⚠️ As cardinalidades de **User ↔ Condominium** (síndico, administrador, morador) **não foram especificadas no relatório-fonte**. A Fase 0 (Discovery) deve mapear isso a partir do código real.
+### 3.3 Guards e controle de acesso
 
-### 3.3 Padrões transversais já implementados
+| Guard | Onde | O que valida |
+|---|---|---|
+| `JwtAuthGuard` | Quase tudo | Token JWT válido |
+| `RolesGuard` | `/condominiums/:id/members`, edição/remoção de condomínio | `@Roles(...)` por membership |
+| `MasterGuard` | `/companies/*` | `user.isMaster === true` |
+| `CompanyAdminGuard` | `/companies/me/users/*` | User tem membership ADMIN em pelo menos um condomínio da empresa |
+| `InfractionAccessGuard` | `/infractions/:id/*` e `/infractions/:id/images/*` | Infraction.unit.condominium.companyId === user.companyId (master bypassa) |
+
+**Multi-tenant isolation** acontece em dois lugares:
+- **Guards** validam acesso por ID em rotas `/:id/*`
+- **Services** filtram listas por `companyId` (CondominiumsService.findAll, InfractionsService.findAll)
+
+### 3.4 Padrões transversais
 
 - **HttpExceptionFilter customizado** — normaliza erros.
 - **ResponseInterceptor** — envelopa sucesso em `{ statusCode, data }`.
 - **ValidationPipe global** com `whitelist: true` + `forbidNonWhitelisted: true`.
+- **AuditService.log(actor, action, entity, entityId, context)** — fire-and-forget, instrumentado em 9 pontos críticos.
+- **Actor pattern**: controllers constroem `Actor = { userId, email, isMaster, companyId }` via helper `toActor(req)` e passam aos services. Sem AsyncLocalStorage.
 
 Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos paralelos de resposta.
+
+### 3.5 Hierarquia de papéis (RBAC)
+
+| Papel | Escopo | Pode |
+|---|---|---|
+| **Master** (`isMaster=true`) | Global | Criar empresas, ver audit de tudo, bypassa isolation |
+| **ADMIN** (de condomínio, em UserCondominium) | Por condomínio | Editar condomínio, adicionar/remover membros, criar funcionários da empresa via `/companies/me/users` |
+| **MANAGER** | Por condomínio | Operar infrações no condomínio (criar, analisar, aprovar, enviar) |
+| **RESIDENT** | Por condomínio | Histórico — não usado pelo frontend atual (moradores não logam, recebem por e-mail/WhatsApp) |
+
+> Funcionário pode ser ADMIN em um condomínio e MANAGER em outro da mesma empresa.
 
 ---
 
@@ -104,11 +182,56 @@ Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos parale
 
 ---
 
-## 5. Backlog priorizado
+## 5. Backlog
 
-> **Convenção:** cada tarefa tem `ID`, `Prioridade` (P0 = bloqueador, P1 = essencial, P2 = importante, P3 = nice-to-have), `Tipo`, `Critérios de Aceitação` e `DoD` (Definition of Done).
+> **Convenção:** cada tarefa tem `ID`, `Prioridade` (P0–P3) e `Status` (✅ done · 🔄 em andamento · ⏳ pending).
 
-### Fase 0 — Discovery (obrigatória antes de qualquer implementação)
+### 5.1 Já entregue (resumo)
+
+| ID | Título | Status |
+|---|---|---|
+| T-00 | Discovery + state-of-code | ✅ |
+| T-01 | CORS dinâmico via ConfigService | ✅ |
+| T-02 | Eliminar fallbacks em data-source.ts | ✅ |
+| T-03 | Validação Joi do .env no bootstrap | ✅ |
+| T-04 | Fluxo de análise de infração via IA | ✅ |
+| T-05 | Geração de relatório PDF | ✅ |
+| T-06 | RBAC (UserCondominium + RolesGuard) | ✅ |
+| T-07 | Cobertura mínima por módulo no CI | ✅ |
+| T-08 | Logger estruturado (pino) | ✅ |
+| T-09 | Healthcheck (`@nestjs/terminus`) | ✅ |
+| T-10 | Dockerfile + docker-compose | ✅ |
+| T-11 | Pipeline CI (lint + test + coverage) | ✅ |
+| T-IA-01 | Regimento PDF por condomínio + IA contextual | ✅ |
+| T-IA-02 | Reincidências como contexto da IA (prompt v3) | ✅ |
+| T-AP-01 | Fluxo de aprovação humana (ANALYZED → APPROVED) | ✅ |
+| T-NT-01 | Envio por e-mail (Resend) com PDF anexo | ✅ |
+| T-NT-02 | Envio por WhatsApp (Z-API) — canal complementar | ✅ |
+| T-IMG-01 | Upload de imagens da infração (galeria + embed no PDF) | ✅ |
+| T-MT-01 | Multi-tenant foundation (Company + master) | ✅ |
+| T-MT-02 | Frontend master panel (/master/companies) | ✅ |
+| T-MT-03 | ADMIN cria funcionários da empresa (/companies/me/users) | ✅ |
+| T-MT-04 | Isolation de infrações por empresa (InfractionAccessGuard) | ✅ |
+| T-AUDIT-01 | Audit log com escopo por empresa (9 ações instrumentadas + UI /audit-log) | ✅ |
+
+### 5.2 Pendente
+
+| ID | Prioridade | Título | Esforço |
+|---|---|---|---|
+| T-SD-01 | P2 | Soft delete (deletedAt) em Condominium/Unit/Infraction | ~1 dia |
+| T-DOCS | P3 | Atualizar SDD/CLAUDE.md a cada release maior | contínuo |
+| T-DASH | P3 | Dashboard de métricas (infrações/mês, % aprovadas, top reincidentes) | ~2 dias |
+| T-RST | P2 | Reset/troca de senha (admin perdeu temp; user trocar 1º acesso) | ~1 dia |
+| T-CSV | P3 | Exportação CSV de infrações filtradas | ~0.5 dia |
+| T-DOM-RESEND | P2 | Verificar domínio próprio no Resend (sair do sandbox) | config externa |
+| T-ZAPI-REAL | P2 | Criar conta Z-API + setar `ZAPI_*` em prod | config externa |
+| T-FRONT-MISC | P3 | Polishes: ordenação de colunas, filtros adicionais no audit | ad-hoc |
+
+### 5.3 Especificações antigas (referência histórica — T-00 a T-11)
+
+> As T-00 a T-11 originais foram entregues. As especificações detalhadas estão no Git em PRs históricas (#1 a #22). Mantidas em forma resumida para preservar o registro do que foi feito antes da virada multi-tenant.
+
+#### Fase 0 — Discovery (obrigatória antes de qualquer implementação)
 
 #### T-00 · [P0 · Discovery] Inventário do estado real do código
 **Objetivo:** mapear o que de fato está implementado versus o que existe só como esqueleto.
@@ -241,6 +364,18 @@ Uma tarefa só é considerada **Done** quando:
 ---
 
 ## Changelog
+
+### 2.0 — 2026-05-18
+
+**Major revisão pós-virada multi-tenant + integrações reais.** Mudanças estruturais desde a 1.1:
+
+- **§1 Contexto**: produto agora é SaaS multi-tenant (Master → Company → User → Condominium → Unit → Infraction). Frontend Next.js 15 existe e está em uso.
+- **§2 Stack**: adicionados `resend` (e-mail), Z-API (WhatsApp via fetch direto), `nestjs-pino`, `joi`, `pdf-parse`, `multer`. Frontend documentado.
+- **§3 Arquitetura**: adicionados módulos `companies`, `audit`, `mail`, `whatsapp`. Entidades `Company`, `InfractionImage`, `AuditLog`. Guards `MasterGuard`, `CompanyAdminGuard`, `InfractionAccessGuard`. Hierarquia RBAC explicitada.
+- **§5 Backlog**: T-04 a T-11 antigas concluídas. Novas tarefas entregues: T-IA-01/02, T-AP-01, T-NT-01/02, T-IMG-01, T-MT-01..04, T-AUDIT-01. Pendentes recentes adicionadas.
+- **Multi-tenant isolation** em dois níveis: filtro de companyId em listas + guard de acesso em `:id`.
+- **Audit log** com 9 pontos instrumentados (INFRACTION_CREATED/APPROVED/SENT/WHATSAPP_SENT/DELETED + CONDOMINIUM_CREATED/DELETED + COMPANY_CREATED + EMPLOYEE_CREATED).
+- **Master user** criado via migration: `master@audicon.com` / `MasterAudicon@2026` (dev).
 
 ### 1.1 — 2026-05-15
 

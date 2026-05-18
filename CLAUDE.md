@@ -93,39 +93,57 @@ Empresa (tenant master, ex.: Audicon)
    - E-mail cadastrado
    - WhatsApp cadastrado
 
-## Backlog pendente (ordem de valor)
+## Backlog
 
-### Alta prioridade — fluxo principal do produto
+### ✅ Entregue (resumo do que está em produção)
 
-- [ ] **Dados de contato do morador na Unit** — adicionar `residentEmail` e `residentPhone` (desbloqueia notificações)
-- [ ] **Upload de imagens da infração** — armazenamento (S3 / disco local) + relação Infraction ↔ Image
-- [ ] **IA lê o regimento do prédio** — cada Condominium tem PDF de regimento, IA usa como contexto na análise
-- [ ] **Contagem de reincidências** — service que conta infrações anteriores do morador/unidade no mesmo tipo
-- [ ] **Fluxo de aprovação** — novo status `PENDING_APPROVAL` antes de `SENT`; funcionário revisa e aprova
-- [ ] **Envio de e-mail** — integração SendGrid/Resend, template do documento
-- [ ] **Envio de WhatsApp** — integração Twilio/Z-API
-- [ ] **Multi-tenant (entidade Company)** — empresa master no topo da hierarquia; isola dados entre empresas; refatoração estrutural (impacta JWT, RBAC, filtros)
+**Fluxo principal do produto:**
+- Dados de contato do morador na Unit (`residentEmail`, `residentPhone`)
+- Upload de imagens da infração (bytea, max 10/infração 5MB cada, galeria + lightbox + embed no PDF)
+- IA lê regimento do prédio (PDF por condomínio; `extractRegimentoText` via pdf-parse; prompt v2)
+- Contagem de reincidências (12 meses + total; prompt v3 inclui histórico para escalonar penalidade)
+- Fluxo de aprovação (status `analyzed → approved` com `approvedAt`; override opcional de campos)
+- Envio de e-mail (Resend com PDF anexado incluindo imagens; mock em dev)
+- Envio de WhatsApp (Z-API como alerta complementar; mock em dev)
+- **Multi-tenant** completo: Master → Company → Funcionários; isolation via guards + filtro de companyId
 
-### Média prioridade — qualidade/manutenção
+**Qualidade:**
+- RBAC fino em `/infractions/**` (`InfractionAccessGuard` — lookup Infraction → Unit → Condominium → companyId)
+- Audit log com 9 ações instrumentadas (escopo por empresa; UI em `/audit-log`)
 
-- [ ] **RBAC nas rotas de infrações** — hoje `/infractions/**` é só JWT; criar `InfractionRolesGuard` que resolve `condominiumId` via DB lookup (infraction → unit → condominium)
-- [ ] **Soft delete** em Condominium, Unit, Infraction (auditoria, recovery)
-- [ ] **Audit log** — registro de quem fez o quê (criou infração, aprovou, enviou)
+### ⏳ Pendente
 
-### Baixa prioridade — features adicionais
+| Prioridade | Item | Esforço |
+|---|---|---|
+| Média | Soft delete em Condominium/Unit/Infraction | ~1 dia |
+| Média | Reset de senha (admin perdeu temp; user trocar no 1º acesso) | ~1 dia |
+| Média | Verificar domínio próprio no Resend (sair do sandbox) | config externa |
+| Média | Criar conta Z-API + setar `ZAPI_*` em prod | config externa |
+| Baixa | Dashboard de métricas (infrações/mês, % aprovadas, top reincidentes) | ~2 dias |
+| Baixa | Exportação CSV de infrações filtradas | ~0.5 dia |
+| Baixa | Histórico de notificações com status (entregue, lida) | ~2 dias |
 
-- [ ] Dashboard com métricas (infrações por condomínio/mês/tipo)
-- [ ] Exportação CSV de infrações
-- [ ] Histórico de notificações enviadas (status: entregue, lida, etc.)
+## Frontend (Audicon_Web)
 
-## Frontend (em paralelo)
+Next.js 15 + React 19 + shadcn/ui (`@base-ui/react`) + Tailwind + TanStack Query + React Hook Form + Zod + axios + sonner.
 
-Frontend está sendo desenvolvido em paralelo ao backend. Backend atual é estável o suficiente para consumir os fluxos:
+**Páginas implementadas:**
+- `/login`
+- `/master/companies` (master only) — gestão de empresas
+- `/company/employees` (admin) — gestão de funcionários da empresa
+- `/condominiums` — lista
+- `/condominiums/:id` — detalhe + unidades + regimento PDF
+- `/condominiums/:id/units/:unitId/infractions` — lista de infrações com badge "Nª ocorrência"
+- `/condominiums/:id/units/:unitId/infractions/:infractionId` — detalhe + galeria de imagens + aprovação + envio (e-mail/WhatsApp) + PDF
+- `/audit-log` — histórico de ações (master vê tudo + filtro; admin vê só da empresa)
 
-- Login/cadastro
-- CRUD de condomínios (com paginação)
-- CRUD de unidades
-- Criar infração → analisar via IA → baixar PDF
-- Adicionar/remover membros do condomínio
+## Master de dev
+
+```
+email: master@audicon.com
+senha: MasterAudicon@2026
+```
+
+Criado via migration em `1779235200000-AddCompanyAndMasterUser`. **Trocar em produção.**
 
 Quando o backend evoluir (imagens, multi-tenant, notificações), o frontend integra incrementalmente.
