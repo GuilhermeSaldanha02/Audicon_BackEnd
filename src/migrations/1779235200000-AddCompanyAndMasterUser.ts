@@ -25,9 +25,7 @@ export class AddCompanyAndMasterUser1779235200000
     await queryRunner.query(
       `ALTER TABLE "user" ADD "isMaster" boolean NOT NULL DEFAULT false`,
     );
-    await queryRunner.query(
-      `ALTER TABLE "user" ADD "companyId" integer`,
-    );
+    await queryRunner.query(`ALTER TABLE "user" ADD "companyId" integer`);
     await queryRunner.query(
       `CREATE INDEX "IDX_user_companyId" ON "user" ("companyId")`,
     );
