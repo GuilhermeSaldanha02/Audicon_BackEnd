@@ -92,6 +92,68 @@ describe('CompaniesService', () => {
     });
   });
 
+  describe('createEmployee', () => {
+    it('cria funcionário com senha temp e companyId do solicitante', async () => {
+      usersRepo.findOne = jest.fn().mockResolvedValue(null);
+      usersRepo.save.mockResolvedValue({
+        id: 50,
+        nome: 'Func A',
+        email: 'a@empresa.com',
+      });
+      const result = await service.createEmployee(3, {
+        nome: 'Func A',
+        email: 'a@empresa.com',
+      });
+      expect(result.tempPassword).toMatch(/^[A-Za-z0-9]{12}$/);
+      expect(usersRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyId: 3,
+          isMaster: false,
+          nome: 'Func A',
+          email: 'a@empresa.com',
+        }),
+      );
+    });
+
+    it('rejeita quando email já cadastrado', async () => {
+      usersRepo.findOne = jest.fn().mockResolvedValue({ id: 1 });
+      await expect(
+        service.createEmployee(3, { nome: 'X', email: 'dup@empresa.com' }),
+      ).rejects.toThrow(/já está em uso/);
+    });
+
+    it('rejeita quando companyId ausente (master)', async () => {
+      await expect(
+        service.createEmployee(undefined as any, {
+          nome: 'X',
+          email: 'x@x.com',
+        }),
+      ).rejects.toThrow(/vinculado/);
+    });
+  });
+
+  describe('listEmployees', () => {
+    it('lista funcionários da empresa (sem master, sem senha)', async () => {
+      usersRepo.find = jest.fn().mockResolvedValue([
+        { id: 5, nome: 'F1', email: 'f1@x.com' },
+        { id: 6, nome: 'F2', email: 'f2@x.com' },
+      ]);
+      const result = await service.listEmployees(3);
+      expect(result).toHaveLength(2);
+      expect(usersRepo.find).toHaveBeenCalledWith({
+        where: { companyId: 3, isMaster: false },
+        select: ['id', 'nome', 'email'],
+        order: { id: 'ASC' },
+      });
+    });
+
+    it('rejeita quando companyId ausente', async () => {
+      await expect(service.listEmployees(undefined as any)).rejects.toThrow(
+        /vinculado/,
+      );
+    });
+  });
+
   describe('findOne', () => {
     it('retorna empresa quando existe', async () => {
       companiesRepo.findOneBy.mockResolvedValue({ id: 5 });

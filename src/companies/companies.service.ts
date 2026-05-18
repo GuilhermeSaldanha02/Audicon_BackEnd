@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -72,6 +73,61 @@ export class CompaniesService {
     return this.companiesRepository.find({ order: { createdAt: 'DESC' } });
   }
 
+  async createEmployee(
+    companyId: number,
+    dto: { nome: string; email: string },
+  ): Promise<{
+    id: number;
+    nome: string;
+    email: string;
+    tempPassword: string;
+  }> {
+    if (!companyId) {
+      throw new BadRequestException(
+        'Solicitante não está vinculado a uma empresa.',
+      );
+    }
+    const existing = await this.usersRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `E-mail ${dto.email} já está em uso por outro usuário.`,
+      );
+    }
+    const tempPassword = generateTempPassword();
+    const user = this.usersRepository.create({
+      nome: dto.nome,
+      email: dto.email,
+      senha: tempPassword,
+      isMaster: false,
+      companyId,
+    });
+    const saved = await this.usersRepository.save(user);
+    return {
+      id: saved.id,
+      nome: saved.nome,
+      email: saved.email,
+      tempPassword,
+    };
+  }
+
+  async listEmployees(
+    companyId: number,
+  ): Promise<Array<{ id: number; nome: string; email: string }>> {
+    if (!companyId) {
+      throw new BadRequestException(
+        'Solicitante não está vinculado a uma empresa.',
+      );
+    }
+    const users = await this.usersRepository.find({
+      where: { companyId, isMaster: false },
+      select: ['id', 'nome', 'email'],
+      order: { id: 'ASC' },
+    });
+    return users;
+  }
+
   async findOne(id: number): Promise<Company> {
     const company = await this.companiesRepository.findOneBy({ id });
     if (!company) {
@@ -81,7 +137,7 @@ export class CompaniesService {
   }
 }
 
-function generateTempPassword(): string {
+export function generateTempPassword(): string {
   // 12 chars, alphanumeric, mixed case, no ambiguous chars
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   const bytes = crypto.randomBytes(12);
