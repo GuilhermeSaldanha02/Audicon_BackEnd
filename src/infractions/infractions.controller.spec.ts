@@ -10,6 +10,7 @@ describe('InfractionsController', () => {
     analyze: jest.Mock;
     approve: jest.Mock;
     send: jest.Mock;
+    sendWhatsapp: jest.Mock;
     generateDocument: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
@@ -22,6 +23,7 @@ describe('InfractionsController', () => {
       analyze: jest.fn(),
       approve: jest.fn(),
       send: jest.fn(),
+      sendWhatsapp: jest.fn(),
       generateDocument: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -106,6 +108,15 @@ describe('InfractionsController', () => {
     const result = await controller.approve(9, dto);
     expect(service.approve).toHaveBeenCalledWith(9, dto);
     expect(result.status).toBe('approved');
+  });
+  it('sendWhatsapp chama service.sendWhatsapp com id', async () => {
+    service.sendWhatsapp.mockResolvedValue({
+      id: 11,
+      whatsappSentAt: new Date(),
+    });
+    const result = await controller.sendWhatsapp(11);
+    expect(service.sendWhatsapp).toHaveBeenCalledWith(11);
+    expect(result.id).toBe(11);
   });
   it('send chama service.send com id', async () => {
     service.send.mockResolvedValue({ id: 10, status: 'sent' });

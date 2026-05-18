@@ -14,6 +14,7 @@ import { IaService } from 'src/ia/ia.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { CondominiumsService } from 'src/condominiums/condominiums.service';
 import { MailService } from 'src/mail/mail.service';
+import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { ImagesService } from './images.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
@@ -27,6 +28,7 @@ export class InfractionsService {
     private readonly pdfService: PdfService,
     private readonly condominiumsService: CondominiumsService,
     private readonly mailService: MailService,
+    private readonly whatsappService: WhatsappService,
     private readonly imagesService: ImagesService,
   ) {}
   async create(dto: CreateInfractionDto) {
@@ -181,6 +183,32 @@ export class InfractionsService {
     });
     infraction.status = InfractionStatus.SENT;
     infraction.sentAt = new Date();
+    return this.infractionsRepository.save(infraction);
+  }
+  async sendWhatsapp(id: number) {
+    const infraction = await this.infractionsRepository.findOne({
+      where: { id },
+      relations: ['unit', 'unit.condominium'],
+    });
+    if (!infraction) {
+      throw new NotFoundException(`Infraction with ID #${id} not found.`);
+    }
+    if (
+      infraction.status !== InfractionStatus.APPROVED &&
+      infraction.status !== InfractionStatus.SENT
+    ) {
+      throw new BadRequestException(
+        `Infraction #${id} cannot send WhatsApp from status "${infraction.status}". Required: approved or sent.`,
+      );
+    }
+    const phone = infraction.unit?.residentPhone;
+    if (!phone) {
+      throw new BadRequestException(
+        `Unit of infraction #${id} has no resident phone registered.`,
+      );
+    }
+    await this.whatsappService.sendInfractionAlert({ infraction, phone });
+    infraction.whatsappSentAt = new Date();
     return this.infractionsRepository.save(infraction);
   }
   async findForReport(

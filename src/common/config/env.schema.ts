@@ -25,6 +25,10 @@ export const envValidationSchema = Joi.object({
   RESEND_API_KEY: Joi.string().optional(),
   RESEND_FROM_EMAIL: Joi.string().email().optional(),
 
+  ZAPI_INSTANCE_ID: Joi.string().optional(),
+  ZAPI_TOKEN: Joi.string().optional(),
+  ZAPI_CLIENT_TOKEN: Joi.string().optional(),
+
   LOG_LEVEL: Joi.string()
     .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
     .optional(),
