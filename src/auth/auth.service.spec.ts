@@ -82,6 +82,24 @@ describe('AuthService', () => {
       expect(jwtService.sign).toHaveBeenCalledWith({
         email: 'john@example.com',
         sub: 42,
+        companyId: null,
+        isMaster: false,
+      });
+    });
+    it('inclui companyId e isMaster do user no payload', async () => {
+      const user = {
+        id: 7,
+        email: 'admin@empresa.com',
+        companyId: 3,
+        isMaster: false,
+      } as any;
+      jwtService.sign.mockReturnValue('jwt-2');
+      await service.login(user);
+      expect(jwtService.sign).toHaveBeenCalledWith({
+        email: 'admin@empresa.com',
+        sub: 7,
+        companyId: 3,
+        isMaster: false,
       });
     });
   });

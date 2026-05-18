@@ -89,7 +89,7 @@ describe('CondominiumsService', () => {
       });
       ucRepo.save.mockResolvedValue({});
 
-      const result = await service.create(dto, 7);
+      const result = await service.create(dto, 7, 1);
       expect(result).toEqual(saved);
       expect(ucRepo.create).toHaveBeenCalledWith({
         userId: 7,
@@ -108,7 +108,7 @@ describe('CondominiumsService', () => {
       condoRepo.save.mockRejectedValue(
         new QueryFailedError('INSERT', [], driverError),
       );
-      await expect(service.create(dto, 1)).rejects.toBeInstanceOf(
+      await expect(service.create(dto, 1, 1)).rejects.toBeInstanceOf(
         ConflictException,
       );
     });
@@ -117,7 +117,7 @@ describe('CondominiumsService', () => {
       const dto: any = { name: 'Condo B', cnpj: '11.111.111/1111-11' };
       condoRepo.create.mockReturnValue(dto);
       condoRepo.save.mockRejectedValue(new Error('unexpected'));
-      await expect(service.create(dto, 1)).rejects.toBeInstanceOf(
+      await expect(service.create(dto, 1, 1)).rejects.toBeInstanceOf(
         InternalServerErrorException,
       );
     });
@@ -207,10 +207,11 @@ describe('CondominiumsService', () => {
 
   describe('addMember', () => {
     it('deve criar membership quando não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3 });
+      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
       usersService.findOneByEmail.mockResolvedValue({
         id: 5,
         email: 'novo@condo.com',
+        companyId: 1,
       });
       ucRepo.findOne.mockResolvedValue(null);
       const membership = {
@@ -235,10 +236,11 @@ describe('CondominiumsService', () => {
     });
 
     it('deve atualizar role quando membership já existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3 });
+      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
       usersService.findOneByEmail.mockResolvedValue({
         id: 5,
         email: 'user@condo.com',
+        companyId: 1,
       });
       const existing = {
         id: 1,
@@ -257,7 +259,7 @@ describe('CondominiumsService', () => {
     });
 
     it('deve lançar NotFoundException quando usuário não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3 });
+      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
       usersService.findOneByEmail.mockResolvedValue(null);
       await expect(
         service.addMember(3, {
@@ -275,6 +277,21 @@ describe('CondominiumsService', () => {
           role: UserRole.RESIDENT,
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('deve rejeitar quando usuário pertence a empresa diferente', async () => {
+      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
+      usersService.findOneByEmail.mockResolvedValue({
+        id: 9,
+        email: 'outro@empresa.com',
+        companyId: 2,
+      });
+      await expect(
+        service.addMember(3, {
+          email: 'outro@empresa.com',
+          role: UserRole.MANAGER,
+        }),
+      ).rejects.toThrow(/mesma empresa/);
     });
   });
 

@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { CompaniesModule } from './companies/companies.module';
 import { CondominiumsModule } from './condominiums/condominiums.module';
 import { UnitsModule } from './units/units.module';
 import { InfractionsModule } from './infractions/infractions.module';
@@ -51,6 +52,7 @@ import { buildLoggerConfig } from './common/logger/logger.config';
     }),
     UsersModule,
     AuthModule,
+    CompaniesModule,
     CondominiumsModule,
     UnitsModule,
     InfractionsModule,
