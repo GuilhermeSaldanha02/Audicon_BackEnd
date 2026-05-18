@@ -49,11 +49,16 @@ describe('InfractionsController', () => {
   const mockReq: any = {
     user: { id: 1, email: 'u@x.com', companyId: 1, isMaster: false },
   };
-  it('create chama service.create com dto + companyId + isMaster', async () => {
+  it('create chama service.create com dto + companyId + isMaster + actor', async () => {
     const dto: any = { description: 'Teste', unitId: 10 };
     service.create.mockResolvedValue({ id: 1, ...dto });
     const result = await controller.create(mockReq, dto);
-    expect(service.create).toHaveBeenCalledWith(dto, 1, false);
+    expect(service.create).toHaveBeenCalledWith(
+      dto,
+      1,
+      false,
+      expect.any(Object),
+    );
     expect(result).toEqual({ id: 1, ...dto });
   });
   it('findAll sem unitId repassa paginação + companyId', async () => {
