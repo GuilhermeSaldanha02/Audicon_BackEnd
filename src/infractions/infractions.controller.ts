@@ -143,6 +143,25 @@ export class InfractionsController {
     return this.infractionsService.send(id);
   }
 
+  @ApiOperation({
+    summary:
+      'Enviar alerta por WhatsApp (canal complementar; não muda o status principal).',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'WhatsApp enviado, whatsappSentAt preenchido',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Status diferente de approved/sent ou unidade sem telefone',
+  })
+  @ApiResponse({ status: 404, description: 'Infração não encontrada' })
+  @Post(':id/send-whatsapp')
+  sendWhatsapp(@Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.sendWhatsapp(id);
+  }
+
   @ApiOperation({ summary: 'Atualizar infração' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Infração atualizada' })

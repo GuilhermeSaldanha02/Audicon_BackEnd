@@ -55,6 +55,12 @@ export class Infraction {
     comment: 'When the infraction notification was sent to the resident.',
   })
   sentAt: Date | null;
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    comment: 'When the WhatsApp alert was sent to the resident.',
+  })
+  whatsappSentAt: Date | null;
   @ManyToOne(() => Unit, (unit) => unit.infractions)
   unit: Unit;
   @OneToMany(() => InfractionImage, (image) => image.infraction)

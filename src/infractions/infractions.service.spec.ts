@@ -7,6 +7,7 @@ import { IaService } from '../ia/ia.service';
 import { PdfService } from '../pdf/pdf.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
 import { MailService } from '../mail/mail.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { ImagesService } from './images.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 describe('InfractionsService', () => {
@@ -16,6 +17,7 @@ describe('InfractionsService', () => {
   let ia: any;
   let pdf: any;
   let mail: any;
+  let whatsapp: any;
   let condos: any;
   let qb: any;
   const mockInfraction: Infraction = {
@@ -28,12 +30,14 @@ describe('InfractionsService', () => {
     updatedAt: new Date('2024-06-08T10:00:00Z'),
     approvedAt: null,
     sentAt: null,
+    whatsappSentAt: null,
     images: [] as any,
     unit: {
       id: 10,
       identifier: 'A101',
       ownerName: 'John Doe',
       residentEmail: 'morador@teste.com',
+      residentPhone: '11999998888',
       condominium: { id: 5, name: 'Condo Alpha' } as any,
       infractions: [] as any,
     } as any,
@@ -100,6 +104,14 @@ describe('InfractionsService', () => {
           },
         },
         {
+          provide: WhatsappService,
+          useValue: {
+            sendInfractionAlert: jest
+              .fn()
+              .mockResolvedValue({ id: 'wa-mock-1' }),
+          },
+        },
+        {
           provide: ImagesService,
           useValue: {
             getContentBuffers: jest.fn().mockResolvedValue([]),
@@ -114,6 +126,7 @@ describe('InfractionsService', () => {
     pdf = module.get(PdfService);
     condos = module.get(CondominiumsService);
     mail = module.get(MailService);
+    whatsapp = module.get(WhatsappService);
   });
   it('should be defined', () => {
     expect(service).toBeDefined();
@@ -384,6 +397,60 @@ describe('InfractionsService', () => {
     it('propaga NotFound quando infração não existe', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue(null);
       await expect(service.send(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+  describe('sendWhatsapp', () => {
+    const approved = {
+      ...mockInfraction,
+      status: InfractionStatus.APPROVED,
+    };
+    it('envia WhatsApp e preenche whatsappSentAt no status APPROVED', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({ ...approved });
+      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
+      const result = await service.sendWhatsapp(1);
+      expect(whatsapp.sendInfractionAlert).toHaveBeenCalledWith({
+        infraction: expect.objectContaining({ id: 1 }),
+        phone: '11999998888',
+      });
+      expect(result.whatsappSentAt).toBeInstanceOf(Date);
+      // status não muda
+      expect(result.status).toBe(InfractionStatus.APPROVED);
+    });
+    it('permite envio também no status SENT (canal complementar ao e-mail)', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...approved,
+        status: InfractionStatus.SENT,
+      });
+      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
+      const result = await service.sendWhatsapp(1);
+      expect(result.status).toBe(InfractionStatus.SENT);
+      expect(result.whatsappSentAt).toBeInstanceOf(Date);
+    });
+    it('rejeita quando status é PENDING ou ANALYZED', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...mockInfraction,
+        status: InfractionStatus.ANALYZED,
+      });
+      await expect(service.sendWhatsapp(1)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(whatsapp.sendInfractionAlert).not.toHaveBeenCalled();
+    });
+    it('rejeita quando unidade não tem residentPhone', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue({
+        ...approved,
+        unit: { ...approved.unit, residentPhone: null },
+      });
+      await expect(service.sendWhatsapp(1)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(whatsapp.sendInfractionAlert).not.toHaveBeenCalled();
+    });
+    it('propaga NotFound quando infração não existe', async () => {
+      (repo.findOne as jest.Mock).mockResolvedValue(null);
+      await expect(service.sendWhatsapp(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
   describe('generateDocument', () => {
