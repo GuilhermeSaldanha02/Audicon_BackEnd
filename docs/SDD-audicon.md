@@ -213,19 +213,20 @@ Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos parale
 | T-MT-03 | ADMIN cria funcionários da empresa (/companies/me/users) | ✅ |
 | T-MT-04 | Isolation de infrações por empresa (InfractionAccessGuard) | ✅ |
 | T-AUDIT-01 | Audit log com escopo por empresa (9 ações instrumentadas + UI /audit-log) | ✅ |
+| T-SD-01 | Soft delete (`deletedAt`) em Condominium/Unit/Infraction (PR #35) | ✅ |
+| T-RST-01 | Reset de senha (admin reseta funcionário; master reseta admin — PR #36) | ✅ |
+| T-CSV-01 | Exportação CSV de infrações filtradas (`GET /infractions/export` — PR #37) | ✅ |
+| T-DASH-01 | Dashboard de métricas (totais, status, mês, top reincidentes, taxa aprovação — PR #38) | ✅ |
 
 ### 5.2 Pendente
 
 | ID | Prioridade | Título | Esforço |
 |---|---|---|---|
-| T-SD-01 | P2 | Soft delete (deletedAt) em Condominium/Unit/Infraction | ~1 dia |
-| T-DOCS | P3 | Atualizar SDD/CLAUDE.md a cada release maior | contínuo |
-| T-DASH | P3 | Dashboard de métricas (infrações/mês, % aprovadas, top reincidentes) | ~2 dias |
-| T-RST | P2 | Reset/troca de senha (admin perdeu temp; user trocar 1º acesso) | ~1 dia |
-| T-CSV | P3 | Exportação CSV de infrações filtradas | ~0.5 dia |
+| T-NH-01 | P3 | Histórico de notificações com status real (webhook Resend) | ~2 dias |
 | T-DOM-RESEND | P2 | Verificar domínio próprio no Resend (sair do sandbox) | config externa |
 | T-ZAPI-REAL | P2 | Criar conta Z-API + setar `ZAPI_*` em prod | config externa |
 | T-FRONT-MISC | P3 | Polishes: ordenação de colunas, filtros adicionais no audit | ad-hoc |
+| T-DOCS | P3 | Atualizar SDD/CLAUDE.md a cada release maior | contínuo |
 
 ### 5.3 Especificações antigas (referência histórica — T-00 a T-11)
 
@@ -364,6 +365,12 @@ Uma tarefa só é considerada **Done** quando:
 ---
 
 ## Changelog
+
+### 2.1 — 2026-05-18
+
+- **§5 Backlog**: T-SD-01 (soft delete, PR #35), T-RST-01 (reset de senha, PR #36), T-CSV-01 (exportação CSV, PR #37), T-DASH-01 (dashboard de métricas, PR #38) marcadas como ✅ entregues.
+- Novo item T-NH-01: histórico de notificações com status real via webhook do Resend (último item de código pendente).
+- Pendências restantes: apenas T-NH-01 (código) + 2 configs externas (domínio Resend, conta Z-API real).
 
 ### 2.0 — 2026-05-18
 

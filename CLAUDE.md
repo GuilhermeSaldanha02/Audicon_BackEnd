@@ -42,15 +42,20 @@ docker compose down -v     # Derrubar e limpar volumes
 
 ```
 src/
-├── auth/           JWT login, LocalStrategy, JwtStrategy, guards
+├── auth/           JWT login, LocalStrategy, JwtStrategy, guards, reset de senha
 ├── users/          CRUD usuários + entidade UserCondominium (RBAC)
-├── condominiums/   CRUD condomínios + endpoint /members
-├── units/          CRUD unidades (nested: /condominiums/:id/units)
-├── infractions/    CRUD infrações + análise IA + PDF unitário
-├── ia/             Gemini AI com timeout, mock em dev/test
-├── pdf/            pdfkit — buffer (unitário) e stream (relatório)
+├── companies/      CRUD empresas (master) + funcionários (admin)
+├── condominiums/   CRUD condomínios + endpoint /members + soft delete
+├── units/          CRUD unidades (nested: /condominiums/:id/units) + soft delete
+├── infractions/    CRUD infrações + análise IA + PDF + aprovação + envio + CSV + soft delete
+├── ia/             Gemini AI com timeout, mock em dev/test, leitura de regimento
+├── pdf/            pdfkit — buffer (unitário) e stream (relatório), embed de imagens
+├── mail/           Resend (envio de e-mail com PDF + imagens, mock em dev)
+├── whatsapp/       Z-API (alerta complementar, mock em dev)
+├── audit/          Log de ações sensíveis (9 ações instrumentadas, escopo por empresa)
+├── dashboard/      Métricas (totais, por status, por mês, top reincidentes, taxa de aprovação)
 ├── health/         /health/live e /health/ready (@nestjs/terminus)
-└── common/         filters, interceptors, pipes, guards (RolesGuard), enums, decorators
+└── common/         filters, interceptors, pipes, guards, enums, decorators
 ```
 
 ## RBAC
@@ -110,17 +115,17 @@ Empresa (tenant master, ex.: Audicon)
 **Qualidade:**
 - RBAC fino em `/infractions/**` (`InfractionAccessGuard` — lookup Infraction → Unit → Condominium → companyId)
 - Audit log com 9 ações instrumentadas (escopo por empresa; UI em `/audit-log`)
+- Soft delete em Condominium / Unit / Infraction (PR #35 — `@DeleteDateColumn`, filtro automático do TypeORM)
+- Reset de senha (PR #36 — admin reseta funcionário; master reseta admin)
+- Dashboard de métricas (PR #38 — total, por status, últimos 6 meses, top 5 reincidentes, taxa de aprovação)
+- Exportação CSV de infrações filtradas (PR #37 — `GET /infractions/export` com filtros opcionais)
 
 ### ⏳ Pendente
 
 | Prioridade | Item | Esforço |
 |---|---|---|
-| Média | Soft delete em Condominium/Unit/Infraction | ~1 dia |
-| Média | Reset de senha (admin perdeu temp; user trocar no 1º acesso) | ~1 dia |
 | Média | Verificar domínio próprio no Resend (sair do sandbox) | config externa |
 | Média | Criar conta Z-API + setar `ZAPI_*` em prod | config externa |
-| Baixa | Dashboard de métricas (infrações/mês, % aprovadas, top reincidentes) | ~2 dias |
-| Baixa | Exportação CSV de infrações filtradas | ~0.5 dia |
 | Baixa | Histórico de notificações com status (entregue, lida) | ~2 dias |
 
 ## Frontend (Audicon_Web)
@@ -136,6 +141,8 @@ Next.js 15 + React 19 + shadcn/ui (`@base-ui/react`) + Tailwind + TanStack Query
 - `/condominiums/:id/units/:unitId/infractions` — lista de infrações com badge "Nª ocorrência"
 - `/condominiums/:id/units/:unitId/infractions/:infractionId` — detalhe + galeria de imagens + aprovação + envio (e-mail/WhatsApp) + PDF
 - `/audit-log` — histórico de ações (master vê tudo + filtro; admin vê só da empresa)
+- `/dashboard` — métricas (cards de total/aprovadas/enviadas/taxa, barras por status, gráfico mensal, top 5 reincidentes)
+- Botão **Exportar CSV** na lista de infrações (download via blob)
 
 ## Master de dev
 
