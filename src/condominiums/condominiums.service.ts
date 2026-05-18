@@ -14,6 +14,7 @@ import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UsersService } from '../users/users.service';
+import { AuditService, Actor } from '../audit/audit.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResult } from '../common/dto/paginated-result.dto';
 
@@ -25,12 +26,14 @@ export class CondominiumsService {
     @InjectRepository(UserCondominium)
     private readonly ucRepository: Repository<UserCondominium>,
     private readonly usersService: UsersService,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(
     createCondominiumDto: CreateCondominiumDto,
     userId: number,
     companyId: number,
+    actor?: Actor,
   ) {
     if (!companyId) {
       throw new BadRequestException(
@@ -51,6 +54,15 @@ export class CondominiumsService {
       });
       await this.ucRepository.save(membership);
 
+      if (actor) {
+        this.auditService.log({
+          actor,
+          action: 'CONDOMINIUM_CREATED',
+          entity: 'condominium',
+          entityId: saved.id,
+          context: { name: saved.name, cnpj: saved.cnpj },
+        });
+      }
       return saved;
     } catch (error) {
       if (
@@ -98,9 +110,17 @@ export class CondominiumsService {
     return this.findOne(id);
   }
 
-  async remove(id: number) {
+  async remove(id: number, actor?: Actor) {
     await this.findOne(id);
     await this.condominiumsRepository.delete(id);
+    if (actor) {
+      this.auditService.log({
+        actor,
+        action: 'CONDOMINIUM_DELETED',
+        entity: 'condominium',
+        entityId: id,
+      });
+    }
   }
 
   async addMember(condominiumId: number, dto: AddMemberDto) {

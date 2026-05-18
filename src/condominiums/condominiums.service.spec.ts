@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AuditService } from '../audit/audit.service';
 
 const makeQb = (data: any[], total = data.length) => ({
   innerJoin: jest.fn().mockReturnThis(),
@@ -64,6 +65,13 @@ describe('CondominiumsService', () => {
         { provide: getRepositoryToken(Condominium), useValue: condoRepo },
         { provide: getRepositoryToken(UserCondominium), useValue: ucRepo },
         { provide: UsersService, useValue: usersService },
+        {
+          provide: AuditService,
+          useValue: {
+            log: jest.fn(),
+            logAsync: jest.fn().mockResolvedValue(null),
+          },
+        },
       ],
     }).compile();
 
