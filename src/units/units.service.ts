@@ -57,6 +57,6 @@ export class UnitsService {
   }
   async remove(id: number) {
     await this.findOne(id);
-    await this.unitsRepository.delete(id);
+    await this.unitsRepository.softDelete(id);
   }
 }

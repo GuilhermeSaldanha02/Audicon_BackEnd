@@ -32,6 +32,7 @@ describe('InfractionsService', () => {
     approvedAt: null,
     sentAt: null,
     whatsappSentAt: null,
+    deletedAt: null,
     images: [] as any,
     unit: {
       id: 10,
@@ -69,6 +70,7 @@ describe('InfractionsService', () => {
             findOne: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
+            softDelete: jest.fn(),
             createQueryBuilder: jest.fn(() => qb),
           },
         },
@@ -239,12 +241,12 @@ describe('InfractionsService', () => {
     });
   });
   describe('remove', () => {
-    it('remove após validar existência', async () => {
+    it('soft-deleta após validar existência', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue({ ...mockInfraction });
-      (repo.delete as jest.Mock).mockResolvedValue({ affected: 1 });
+      (repo.softDelete as jest.Mock).mockResolvedValue({ affected: 1 });
       await service.remove(1);
       expect(repo.findOne).toHaveBeenCalled();
-      expect(repo.delete).toHaveBeenCalledWith(1);
+      expect(repo.softDelete).toHaveBeenCalledWith(1);
     });
   });
   describe('analyze', () => {

@@ -122,7 +122,7 @@ export class InfractionsService {
   }
   async remove(id: number, actor?: Actor) {
     await this.findOne(id);
-    await this.infractionsRepository.delete(id);
+    await this.infractionsRepository.softDelete(id);
     if (actor) {
       this.auditService.log({
         actor,

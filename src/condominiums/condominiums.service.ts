@@ -112,7 +112,7 @@ export class CondominiumsService {
 
   async remove(id: number, actor?: Actor) {
     await this.findOne(id);
-    await this.condominiumsRepository.delete(id);
+    await this.condominiumsRepository.softDelete(id);
     if (actor) {
       this.auditService.log({
         actor,
