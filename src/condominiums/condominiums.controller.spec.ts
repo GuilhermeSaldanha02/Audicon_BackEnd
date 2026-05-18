@@ -3,7 +3,9 @@ import { CondominiumsController } from './condominiums.controller';
 import { CondominiumsService } from './condominiums.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 
-const mockReq = { user: { id: 42, companyId: 1 } };
+const mockReq = {
+  user: { id: 42, email: 'admin@x.com', companyId: 1, isMaster: false },
+};
 
 describe('CondominiumsController', () => {
   let controller: CondominiumsController;
@@ -55,6 +57,7 @@ describe('CondominiumsController', () => {
       dto,
       mockReq.user.id,
       mockReq.user.companyId,
+      expect.any(Object),
     );
   });
 
@@ -97,9 +100,9 @@ describe('CondominiumsController', () => {
   it('remove deve delegar para o service e retornar undefined', async () => {
     const id = 7;
     service.remove.mockResolvedValue(undefined as any);
-    const result = await controller.remove(id);
+    const result = await controller.remove(mockReq, id);
     expect(result).toBeUndefined();
-    expect(service.remove).toHaveBeenCalledWith(id);
+    expect(service.remove).toHaveBeenCalledWith(id, expect.any(Object));
   });
 
   it('addMember deve delegar para o service', async () => {

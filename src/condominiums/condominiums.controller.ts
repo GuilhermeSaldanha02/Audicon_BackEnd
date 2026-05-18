@@ -35,6 +35,16 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { Actor } from '../audit/audit.service';
+
+function toActor(req: any): Actor {
+  return {
+    userId: req.user.id,
+    email: req.user.email,
+    isMaster: !!req.user.isMaster,
+    companyId: req.user.companyId ?? null,
+  };
+}
 
 @ApiTags('Condominiums')
 @ApiBearerAuth()
@@ -55,6 +65,7 @@ export class CondominiumsController {
       createCondominiumDto,
       req.user.id,
       req.user.companyId,
+      toActor(req),
     );
   }
 
@@ -105,8 +116,8 @@ export class CondominiumsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.condominiumsService.remove(id);
+  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.condominiumsService.remove(id, toActor(req));
   }
 
   @ApiOperation({ summary: 'Adicionar membro ao condomínio (requer ADMIN)' })
