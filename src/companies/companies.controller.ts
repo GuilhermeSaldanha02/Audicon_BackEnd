@@ -9,6 +9,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Actor } from '../audit/audit.service';
+
+function masterActor(req: any): Actor {
+  return {
+    userId: req.user.id,
+    email: req.user.email,
+    isMaster: !!req.user.isMaster,
+    companyId: req.user.companyId ?? null,
+  };
+}
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -61,5 +70,30 @@ export class CompaniesController {
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.companiesService.findOne(id);
+  }
+
+  @ApiOperation({
+    summary:
+      'Resetar senha de qualquer usuário da empresa (apenas master). Aceita admins e funcionários.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Senha resetada, retorna senha temporária',
+  })
+  @ApiResponse({ status: 403, description: 'Usuário não pertence à empresa' })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @Post(':companyId/users/:userId/reset-password')
+  resetUserPassword(
+    @Request() req: any,
+    @Param('companyId', ParseIntPipe) companyId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.companiesService.resetPassword({
+      companyId,
+      targetUserId: userId,
+      requesterId: req.user.id,
+      enforceNotAdmin: false,
+      actor: masterActor(req),
+    });
   }
 }
