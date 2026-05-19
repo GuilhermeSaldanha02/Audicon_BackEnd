@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Infraction } from 'src/infractions/entities/infraction.entity';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { NotificationChannel } from 'src/notifications/entities/notification.entity';
 
 export interface SendInfractionAlertParams {
   infraction: Infraction;
@@ -15,7 +17,10 @@ export class WhatsappService implements OnModuleInit {
   private clientToken: string | undefined;
   private nodeEnv: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
+  ) {
     this.instanceId = this.configService.get<string>('ZAPI_INSTANCE_ID');
     this.token = this.configService.get<string>('ZAPI_TOKEN');
     this.clientToken = this.configService.get<string>('ZAPI_CLIENT_TOKEN');
@@ -64,7 +69,14 @@ export class WhatsappService implements OnModuleInit {
       this.logger.warn(
         `[MOCK] WhatsApp simulado para ${normalizedPhone}. Mensagem: ${message.slice(0, 80)}...`,
       );
-      return { id: `mock-${Date.now()}` };
+      const mockId = `mock-${Date.now()}`;
+      await this.notificationsService.record({
+        infractionId: infraction.id,
+        channel: NotificationChannel.WHATSAPP,
+        recipient: normalizedPhone,
+        providerId: mockId,
+      });
+      return { id: mockId };
     }
 
     const url = `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}/send-text`;
@@ -87,7 +99,14 @@ export class WhatsappService implements OnModuleInit {
     this.logger.log(
       `WhatsApp enviado via Z-API para ${normalizedPhone} (messageId: ${data?.messageId ?? data?.id ?? 'n/a'}).`,
     );
-    return { id: data?.messageId ?? data?.id ?? '' };
+    const providerId = data?.messageId ?? data?.id ?? null;
+    await this.notificationsService.record({
+      infractionId: infraction.id,
+      channel: NotificationChannel.WHATSAPP,
+      recipient: normalizedPhone,
+      providerId,
+    });
+    return { id: providerId ?? '' };
   }
 
   private buildMessage(infraction: Infraction): string {

@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { Infraction } from 'src/infractions/entities/infraction.entity';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { NotificationChannel } from 'src/notifications/entities/notification.entity';
 
 export interface SendInfractionEmailParams {
   infraction: Infraction;
@@ -17,7 +19,10 @@ export class MailService implements OnModuleInit {
   private fromEmail: string;
   private nodeEnv: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
+  ) {
     this.apiKey = this.configService.get<string>('RESEND_API_KEY');
     this.fromEmail =
       this.configService.get<string>('RESEND_FROM_EMAIL') ??
@@ -55,7 +60,14 @@ export class MailService implements OnModuleInit {
       this.logger.warn(
         `[MOCK] Envio simulado para ${to} | assunto: "${subject}" | anexo: ${pdfBuffer.length} bytes`,
       );
-      return { id: `mock-${Date.now()}` };
+      const mockId = `mock-${Date.now()}`;
+      await this.notificationsService.record({
+        infractionId: infraction.id,
+        channel: NotificationChannel.EMAIL,
+        recipient: to,
+        providerId: mockId,
+      });
+      return { id: mockId };
     }
 
     const { data, error } = await this.client.emails.send({
@@ -75,6 +87,12 @@ export class MailService implements OnModuleInit {
     }
 
     this.logger.log(`E-mail enviado via Resend para ${to} (id: ${data?.id}).`);
+    await this.notificationsService.record({
+      infractionId: infraction.id,
+      channel: NotificationChannel.EMAIL,
+      recipient: to,
+      providerId: data?.id ?? null,
+    });
     return { id: data?.id ?? '' };
   }
 

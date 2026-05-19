@@ -13,6 +13,7 @@ import { CondominiumsModule } from './condominiums/condominiums.module';
 import { UnitsModule } from './units/units.module';
 import { InfractionsModule } from './infractions/infractions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { IaModule } from './ia/ia.module';
 import { PdfModule } from './pdf/pdf.module';
 import { HealthModule } from './health/health.module';
@@ -60,6 +61,7 @@ import { buildLoggerConfig } from './common/logger/logger.config';
     UnitsModule,
     InfractionsModule,
     DashboardModule,
+    NotificationsModule,
     IaModule,
     PdfModule,
     HealthModule,

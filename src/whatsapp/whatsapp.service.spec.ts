@@ -5,6 +5,7 @@ import {
   Infraction,
   InfractionStatus,
 } from '../infractions/entities/infraction.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const baseInfraction = (): Infraction =>
   ({
@@ -33,6 +34,10 @@ async function build(config: Record<string, any>): Promise<WhatsappService> {
       {
         provide: ConfigService,
         useValue: { get: (k: string) => config[k] },
+      },
+      {
+        provide: NotificationsService,
+        useValue: { record: jest.fn().mockResolvedValue(null) },
       },
     ],
   }).compile();
