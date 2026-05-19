@@ -74,6 +74,17 @@ export class CompaniesController {
 
   @ApiOperation({
     summary:
+      'Listar usuários (admins/funcionários) de uma empresa (apenas master)',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de usuários da empresa' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @Get(':companyId/users')
+  listUsers(@Param('companyId', ParseIntPipe) companyId: number) {
+    return this.companiesService.listUsersOfCompany(companyId);
+  }
+
+  @ApiOperation({
+    summary:
       'Resetar senha de qualquer usuário da empresa (apenas master). Aceita admins e funcionários.',
   })
   @ApiResponse({

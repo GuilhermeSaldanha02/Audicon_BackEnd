@@ -175,6 +175,32 @@ describe('CompaniesService', () => {
     });
   });
 
+  describe('listUsersOfCompany', () => {
+    it('lista usuários após validar que empresa existe', async () => {
+      companiesRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 7, name: 'Empresa X' });
+      usersRepo.find = jest
+        .fn()
+        .mockResolvedValue([{ id: 9, nome: 'Admin', email: 'a@x.com' }]);
+      const result = await service.listUsersOfCompany(7);
+      expect(companiesRepo.findOneBy).toHaveBeenCalledWith({ id: 7 });
+      expect(result).toHaveLength(1);
+      expect(usersRepo.find).toHaveBeenCalledWith({
+        where: { companyId: 7, isMaster: false },
+        select: ['id', 'nome', 'email'],
+        order: { id: 'ASC' },
+      });
+    });
+
+    it('lança 404 quando empresa não existe', async () => {
+      companiesRepo.findOneBy = jest.fn().mockResolvedValue(null);
+      await expect(service.listUsersOfCompany(999)).rejects.toThrow(
+        /não encontrada/i,
+      );
+    });
+  });
+
   describe('resetPassword', () => {
     const actor = {
       userId: 99,
