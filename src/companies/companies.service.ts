@@ -159,6 +159,18 @@ export class CompaniesService {
     return users;
   }
 
+  async listUsersOfCompany(
+    companyId: number,
+  ): Promise<Array<{ id: number; nome: string; email: string }>> {
+    await this.findOne(companyId);
+    const users = await this.usersRepository.find({
+      where: { companyId, isMaster: false },
+      select: ['id', 'nome', 'email'],
+      order: { id: 'ASC' },
+    });
+    return users;
+  }
+
   async resetPassword(opts: {
     companyId: number;
     targetUserId: number;

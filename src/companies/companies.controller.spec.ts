@@ -8,6 +8,7 @@ describe('CompaniesController', () => {
     create: jest.Mock;
     findAll: jest.Mock;
     findOne: jest.Mock;
+    listUsersOfCompany: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -15,6 +16,7 @@ describe('CompaniesController', () => {
       create: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
+      listUsersOfCompany: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController],
@@ -57,5 +59,14 @@ describe('CompaniesController', () => {
     const result = await controller.findOne(5);
     expect(service.findOne).toHaveBeenCalledWith(5);
     expect(result.id).toBe(5);
+  });
+
+  it('listUsers delega ao service com companyId', async () => {
+    service.listUsersOfCompany.mockResolvedValue([
+      { id: 1, nome: 'A', email: 'a@x.com' },
+    ]);
+    const result = await controller.listUsers(7);
+    expect(service.listUsersOfCompany).toHaveBeenCalledWith(7);
+    expect(result).toHaveLength(1);
   });
 });
