@@ -36,7 +36,9 @@ export class AddNotificationsTable1779580800000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "notification" DROP CONSTRAINT "FK_notification_infraction"`,
     );
-    await queryRunner.query(`DROP INDEX "public"."IDX_notification_providerId"`);
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_notification_providerId"`,
+    );
     await queryRunner.query(`DROP TABLE "notification"`);
     await queryRunner.query(`DROP TYPE "public"."notification_status_enum"`);
     await queryRunner.query(`DROP TYPE "public"."notification_channel_enum"`);
