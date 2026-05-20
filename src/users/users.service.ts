@@ -21,4 +21,25 @@ export class UsersService {
   async findOneById(id: number): Promise<User | undefined> {
     return this.usersRepository.findOneBy({ id });
   }
+
+  async getProfile(id: number): Promise<{
+    nome: string;
+    email: string;
+    isMaster: boolean;
+    companyName: string | null;
+  }> {
+    const user = await this.usersRepository.findOne({
+      where: { id },
+      relations: { company: true },
+    });
+    if (!user) {
+      return { nome: '', email: '', isMaster: false, companyName: null };
+    }
+    return {
+      nome: user.nome,
+      email: user.email,
+      isMaster: user.isMaster,
+      companyName: user.company?.name ?? null,
+    };
+  }
 }

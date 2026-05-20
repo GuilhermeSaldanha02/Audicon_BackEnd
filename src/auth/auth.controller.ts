@@ -17,11 +17,15 @@ import {
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { UsersService } from '../users/users.service';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @ApiOperation({ summary: 'Login com e-mail e senha' })
   @ApiBody({
@@ -53,6 +57,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Request() req: any) {
-    return req.user;
+    return this.usersService.getProfile(req.user.id);
   }
 }
