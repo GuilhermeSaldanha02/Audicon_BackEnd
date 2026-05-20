@@ -8,6 +8,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { Actor } from '../audit/audit.service';
 
 function masterActor(req: any): Actor {
@@ -81,6 +82,21 @@ export class CompaniesController {
   @Get(':companyId/users')
   listUsers(@Param('companyId', ParseIntPipe) companyId: number) {
     return this.companiesService.listUsersOfCompany(companyId);
+  }
+
+  @ApiOperation({
+    summary: 'Criar usuário (funcionário/admin) para uma empresa (apenas master). Retorna senha temporária.',
+  })
+  @ApiResponse({ status: 201, description: 'Usuário criado' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @ApiResponse({ status: 409, description: 'E-mail já cadastrado' })
+  @Post(':companyId/users')
+  createUser(
+    @Request() req: any,
+    @Param('companyId', ParseIntPipe) companyId: number,
+    @Body() dto: CreateEmployeeDto,
+  ) {
+    return this.companiesService.createEmployee(companyId, dto, masterActor(req));
   }
 
   @ApiOperation({
