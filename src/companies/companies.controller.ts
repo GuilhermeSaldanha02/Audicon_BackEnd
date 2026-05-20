@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Post,
@@ -82,6 +85,18 @@ export class CompaniesController {
   @Get(':companyId/users')
   listUsers(@Param('companyId', ParseIntPipe) companyId: number) {
     return this.companiesService.listUsersOfCompany(companyId);
+  }
+
+  @ApiOperation({
+    summary: 'Excluir empresa (apenas master). Bloqueado se houver condomínios ativos.',
+  })
+  @ApiResponse({ status: 200, description: 'Empresa removida' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @ApiResponse({ status: 409, description: 'Empresa possui condomínios ativos' })
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.companiesService.remove(id, masterActor(req));
   }
 
   @ApiOperation({

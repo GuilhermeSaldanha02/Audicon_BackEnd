@@ -15,6 +15,7 @@ import { QueryFailedError, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { Company } from './entities/company.entity';
 import { User } from '../users/entities/user.entity';
+import { Condominium } from '../condominiums/entities/condominium.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 
 export interface CreatedCompanyResult {
@@ -36,6 +37,8 @@ export class CompaniesService {
     private readonly usersRepository: Repository<User>,
     @InjectRepository(UserCondominium)
     private readonly ucRepository: Repository<UserCondominium>,
+    @InjectRepository(Condominium)
+    private readonly condominiumsRepository: Repository<Condominium>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -236,6 +239,29 @@ export class CompaniesService {
       throw new NotFoundException(`Empresa #${id} não encontrada.`);
     }
     return company;
+  }
+
+  async remove(id: number, actor: Actor): Promise<{ id: number }> {
+    const company = await this.findOne(id);
+    const condoCount = await this.condominiumsRepository.count({
+      where: { companyId: id },
+    });
+    if (condoCount > 0) {
+      throw new ConflictException(
+        `A empresa possui ${condoCount} condomínio(s) ativo(s). Remova-os antes de excluir a empresa.`,
+      );
+    }
+    await this.usersRepository.delete({ companyId: id, isMaster: false });
+    await this.companiesRepository.delete({ id });
+    this.auditService.log({
+      actor,
+      action: 'COMPANY_DELETED',
+      entity: 'company',
+      entityId: id,
+      context: { name: company.name, cnpj: company.cnpj },
+      companyIdOverride: id,
+    });
+    return { id };
   }
 }
 
