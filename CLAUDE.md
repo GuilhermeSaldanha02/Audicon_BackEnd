@@ -119,14 +119,16 @@ Empresa (tenant master, ex.: Audicon)
 - Reset de senha (PR #36 — admin reseta funcionário; master reseta admin)
 - Dashboard de métricas (PR #38 — total, por status, últimos 6 meses, top 5 reincidentes, taxa de aprovação)
 - Exportação CSV de infrações filtradas (PR #37 — `GET /infractions/export` com filtros opcionais)
+- Histórico de notificações com status (PR #40 — entidade `Notification`, webhook Resend `/webhooks/resend`, `GET /infractions/:id/notifications`)
+- Listagem de usuários por empresa para master (PR #41 — `GET /companies/:id/users`, página `/master/companies/:id`)
 
-### ⏳ Pendente
+### ⏳ Pendente (apenas configurações externas — sem código)
 
-| Prioridade | Item | Esforço |
+| Prioridade | Item | O que fazer |
 |---|---|---|
-| Média | Verificar domínio próprio no Resend (sair do sandbox) | config externa |
-| Média | Criar conta Z-API + setar `ZAPI_*` em prod | config externa |
-| Baixa | Histórico de notificações com status (entregue, lida) | ~2 dias |
+| Média | Resend — domínio próprio | Verificar domínio `audicon.com` no painel resend.com para sair do sandbox |
+| Média | Z-API — conta real | Criar conta em z-api.io, escanear QR do WhatsApp Business, setar `ZAPI_*` no `.env` de prod |
+| Média | Resend — webhook prod | Configurar endpoint `https://api.audicon.com/api/v1/webhooks/resend` no painel Resend e setar `RESEND_WEBHOOK_SECRET` |
 
 ## Frontend (Audicon_Web)
 
@@ -142,7 +144,9 @@ Next.js 15 + React 19 + shadcn/ui (`@base-ui/react`) + Tailwind + TanStack Query
 - `/condominiums/:id/units/:unitId/infractions/:infractionId` — detalhe + galeria de imagens + aprovação + envio (e-mail/WhatsApp) + PDF
 - `/audit-log` — histórico de ações (master vê tudo + filtro; admin vê só da empresa)
 - `/dashboard` — métricas (cards de total/aprovadas/enviadas/taxa, barras por status, gráfico mensal, top 5 reincidentes)
+- `/master/companies/:id` — detalhe da empresa + lista de usuários + reset de senha pelo master
 - Botão **Exportar CSV** na lista de infrações (download via blob)
+- Histórico de notificações por infração (componente `<NotificationHistory />` com auto-refresh 30s)
 
 ## Master de dev
 

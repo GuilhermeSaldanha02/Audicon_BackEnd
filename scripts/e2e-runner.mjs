@@ -10,11 +10,18 @@
 // Exits 0 on success, 1 on first failure with the failing step printed.
 
 const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:3000/api/v1';
+const MASTER_EMAIL = process.env.MASTER_EMAIL ?? 'master@audicon.com';
+const MASTER_PASSWORD = process.env.MASTER_PASSWORD ?? 'MasterAudicon@2026';
+
 const ts = Date.now();
-const email = `qa_user_${ts}@example.com`;
-const password = 'S3nh@Segura456';
-const userName = `QA User ${ts}`;
-const cnpj = String(10000000000000 + (ts % 89999999999999));
+const companyCnpj = String(10000000000000 + (ts % 89999999999999)).replace(
+  /(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,
+  '$1.$2.$3/$4-$5',
+);
+const condoCnpj = String(20000000000000 + (ts % 79999999999999)).replace(
+  /(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,
+  '$1.$2.$3/$4-$5',
+);
 
 let stepNo = 0;
 function logStep(label) {
@@ -84,50 +91,88 @@ async function main() {
   );
   logOk('database up');
 
-  logStep('Users: create');
-  r = await http('POST', `${BASE_URL}/users`, {
-    body: { nome: userName, email, senha: password },
-  });
-  expect(r.body.data?.email === email, 'created user should echo email');
-  expect(r.body.data?.senha === undefined, 'response must not leak senha');
-  logOk(`user ${email}`);
+  // --- Master flow: create company + admin user ---
 
-  logStep('Auth: login');
+  logStep('Master: login');
   r = await http('POST', `${BASE_URL}/auth/login`, {
-    body: { email, password },
+    body: { email: MASTER_EMAIL, password: MASTER_PASSWORD },
   });
-  const token = r.body.data?.access_token;
-  expect(typeof token === 'string' && token.length > 20, 'login should return access_token');
-  logOk(`token ${token.slice(0, 16)}…`);
+  const masterToken = r.body.data?.access_token;
+  expect(typeof masterToken === 'string' && masterToken.length > 20, 'master login should return access_token');
+  logOk(`master token ${masterToken.slice(0, 16)}…`);
 
-  logStep('Auth: profile (JWT)');
-  r = await http('GET', `${BASE_URL}/auth/profile`, { token });
-  expect(r.body.data?.email === email, 'profile should match created user');
-  logOk(`profile email=${r.body.data.email}`);
+  logStep('Master: create company + admin');
+  r = await http('POST', `${BASE_URL}/companies`, {
+    token: masterToken,
+    body: {
+      name: `QA Empresa ${ts}`,
+      cnpj: companyCnpj,
+      admin: { nome: `Admin QA ${ts}`, email: `qa_admin_${ts}@example.com` },
+    },
+  });
+  const companyId = r.body.data?.company?.id;
+  const adminEmail = r.body.data?.admin?.email;
+  const adminTempPassword = r.body.data?.admin?.tempPassword;
+  expect(typeof companyId === 'number', 'company should have numeric id');
+  expect(typeof adminEmail === 'string', 'admin email should be returned');
+  expect(typeof adminTempPassword === 'string' && adminTempPassword.length >= 12, 'tempPassword should be returned');
+  logOk(`company #${companyId}, admin ${adminEmail}`);
+
+  logStep('Master: list companies');
+  r = await http('GET', `${BASE_URL}/companies`, { token: masterToken });
+  expect(Array.isArray(r.body.data), 'companies list should be an array');
+  expect(r.body.data.some((c) => c.id === companyId), 'list should include the new company');
+  logOk(`${r.body.data.length} companies`);
+
+  logStep('Master: get company by id');
+  r = await http('GET', `${BASE_URL}/companies/${companyId}`, { token: masterToken });
+  expect(r.body.data?.id === companyId, 'company id should match');
+  logOk(`company name=${r.body.data.name}`);
+
+  logStep('Master: list users of company');
+  r = await http('GET', `${BASE_URL}/companies/${companyId}/users`, { token: masterToken });
+  expect(Array.isArray(r.body.data) && r.body.data.length >= 1, 'should have at least the admin');
+  logOk(`${r.body.data.length} user(s)`);
+
+  // --- Admin flow: login with temp password ---
+
+  logStep('Admin: login with temp password');
+  r = await http('POST', `${BASE_URL}/auth/login`, {
+    body: { email: adminEmail, password: adminTempPassword },
+  });
+  const adminToken = r.body.data?.access_token;
+  expect(typeof adminToken === 'string' && adminToken.length > 20, 'admin login should return access_token');
+  logOk(`admin token ${adminToken.slice(0, 16)}…`);
+
+  logStep('Admin: profile (JWT)');
+  r = await http('GET', `${BASE_URL}/auth/profile`, { token: adminToken });
+  expect(r.body.data?.email === adminEmail, 'profile should match admin user');
+  logOk(`profile email=${r.body.data.email}, companyId=${r.body.data.companyId}`);
 
   logStep('Condominiums: create');
   r = await http('POST', `${BASE_URL}/condominiums`, {
-    token,
-    body: { name: `Condo QA ${ts}`, cnpj, address: 'Rua Teste, 123' },
+    token: adminToken,
+    body: { name: `Condo QA ${ts}`, cnpj: condoCnpj, address: 'Rua Teste, 123' },
   });
   const condoId = r.body.data?.id;
   expect(typeof condoId === 'number', 'created condominium should have numeric id');
   logOk(`condo #${condoId}`);
 
   logStep('Condominiums: list');
-  r = await http('GET', `${BASE_URL}/condominiums`, { token });
-  expect(Array.isArray(r.body.data), 'list should return an array');
-  expect(r.body.data.some((c) => c.id === condoId), 'list should contain the created condo');
-  logOk(`${r.body.data.length} found`);
+  r = await http('GET', `${BASE_URL}/condominiums`, { token: adminToken });
+  const condoList = Array.isArray(r.body.data) ? r.body.data : r.body.data?.data;
+  expect(Array.isArray(condoList), 'list should return an array');
+  expect(condoList.some((c) => c.id === condoId), 'list should contain the created condo');
+  logOk(`${condoList.length} found`);
 
   logStep('Condominiums: get by id');
-  r = await http('GET', `${BASE_URL}/condominiums/${condoId}`, { token });
-  expect(r.body.data?.cnpj === cnpj, 'cnpj should round-trip');
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}`, { token: adminToken });
+  expect(r.body.data?.cnpj === condoCnpj, 'cnpj should round-trip');
   logOk(`cnpj=${r.body.data.cnpj}`);
 
   logStep('Condominiums: patch address');
   r = await http('PATCH', `${BASE_URL}/condominiums/${condoId}`, {
-    token,
+    token: adminToken,
     body: { address: 'Av. Atualizada, 456' },
   });
   expect(r.body.data?.address === 'Av. Atualizada, 456', 'address should update');
@@ -135,7 +180,7 @@ async function main() {
 
   logStep('Units: create');
   r = await http('POST', `${BASE_URL}/condominiums/${condoId}/units`, {
-    token,
+    token: adminToken,
     body: { identifier: `A-${ts}`, ownerName: 'Fulano de Tal' },
   });
   const unitId = r.body.data?.id;
@@ -143,18 +188,19 @@ async function main() {
   logOk(`unit #${unitId}`);
 
   logStep('Units: list under condominium');
-  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units`, { token });
-  expect(Array.isArray(r.body.data) && r.body.data.length >= 1, 'units list should contain at least the new unit');
-  logOk(`${r.body.data.length} unit(s)`);
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units`, { token: adminToken });
+  const unitList = Array.isArray(r.body.data) ? r.body.data : r.body.data?.data;
+  expect(Array.isArray(unitList) && unitList.length >= 1, 'units list should contain at least the new unit');
+  logOk(`${unitList.length} unit(s)`);
 
   logStep('Units: get by id');
-  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token });
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token: adminToken });
   expect(r.body.data?.identifier === `A-${ts}`, 'identifier should round-trip');
   logOk(`identifier=${r.body.data.identifier}`);
 
   logStep('Units: patch ownerName');
   r = await http('PATCH', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, {
-    token,
+    token: adminToken,
     body: { ownerName: 'Ciclano da Silva' },
   });
   expect(r.body.data?.ownerName === 'Ciclano da Silva', 'ownerName should update');
@@ -162,7 +208,7 @@ async function main() {
 
   logStep('Infractions: create');
   r = await http('POST', `${BASE_URL}/infractions`, {
-    token,
+    token: adminToken,
     body: {
       description: 'Morador toca som alto após 22h, perturbando vizinhos.',
       unitId,
@@ -174,12 +220,13 @@ async function main() {
   logOk(`infraction #${infractionId}`);
 
   logStep('Infractions: list by unit');
-  r = await http('GET', `${BASE_URL}/infractions?unitId=${unitId}`, { token });
-  expect(Array.isArray(r.body.data) && r.body.data.length >= 1, 'should list at least the new infraction');
-  logOk(`${r.body.data.length} infraction(s)`);
+  r = await http('GET', `${BASE_URL}/infractions?unitId=${unitId}`, { token: adminToken });
+  const infractionList = Array.isArray(r.body.data) ? r.body.data : r.body.data?.data;
+  expect(Array.isArray(infractionList) && infractionList.length >= 1, 'should list at least the new infraction');
+  logOk(`${infractionList.length} infraction(s)`);
 
   logStep('Infractions: analyze (AI, falls back to mock without GEMINI_API_KEY)');
-  r = await http('POST', `${BASE_URL}/infractions/${infractionId}/analyze`, { token });
+  r = await http('POST', `${BASE_URL}/infractions/${infractionId}/analyze`, { token: adminToken });
   expect(r.body.data?.status === 'analyzed', 'status should flip to analyzed');
   expect(typeof r.body.data?.formalDescription === 'string' && r.body.data.formalDescription.length > 0,
     'formalDescription should be populated');
@@ -187,7 +234,7 @@ async function main() {
 
   logStep('Infractions: download single PDF');
   r = await http('GET', `${BASE_URL}/infractions/${infractionId}/document`, {
-    token,
+    token: adminToken,
     accept: 'application/pdf',
   });
   expect(r.kind === 'pdf', 'response should be PDF');
@@ -197,7 +244,7 @@ async function main() {
 
   logStep('Reports: download consolidated PDF for condominium');
   r = await http('GET', `${BASE_URL}/condominiums/${condoId}/infractions/report.pdf`, {
-    token,
+    token: adminToken,
     accept: 'application/pdf',
   });
   expect(r.kind === 'pdf', 'response should be PDF');
@@ -207,15 +254,15 @@ async function main() {
   logOk(`report PDF ${r.buffer.length} bytes`);
 
   logStep('Cleanup: delete infraction');
-  await http('DELETE', `${BASE_URL}/infractions/${infractionId}`, { token });
+  await http('DELETE', `${BASE_URL}/infractions/${infractionId}`, { token: adminToken });
   logOk(`infraction #${infractionId} deleted`);
 
   logStep('Cleanup: delete unit');
-  await http('DELETE', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token });
+  await http('DELETE', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token: adminToken });
   logOk(`unit #${unitId} deleted`);
 
   logStep('Cleanup: delete condominium');
-  await http('DELETE', `${BASE_URL}/condominiums/${condoId}`, { token });
+  await http('DELETE', `${BASE_URL}/condominiums/${condoId}`, { token: adminToken });
   logOk(`condo #${condoId} deleted`);
 
   process.stdout.write(`\nAll ${stepNo} steps passed.\n`);
