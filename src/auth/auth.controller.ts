@@ -4,6 +4,7 @@ import {
   UseGuards,
   Request,
   Get,
+  Body,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '../users/users.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -58,5 +60,18 @@ export class AuthController {
   @Get('profile')
   getProfile(@Request() req: any) {
     return this.usersService.getProfile(req.user.id);
+  }
+
+  @ApiOperation({ summary: 'Trocar senha (obrigatório após primeiro login ou reset)' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Senha alterada com sucesso' })
+  @ApiResponse({ status: 400, description: 'Senha inválida' })
+  @ApiResponse({ status: 401, description: 'Token inválido ou ausente' })
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
+    await this.usersService.changePassword(req.user.id, dto.newPassword);
+    return { message: 'Senha alterada com sucesso.' };
   }
 }

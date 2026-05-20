@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 @Injectable()
@@ -20,6 +21,17 @@ export class UsersService {
   }
   async findOneById(id: number): Promise<User | undefined> {
     return this.usersRepository.findOneBy({ id });
+  }
+
+  async changePassword(id: number, newPassword: string): Promise<void> {
+    const user = await this.usersRepository.findOneBy({ id });
+    if (!user) throw new NotFoundException('Usuário não encontrado.');
+    if (newPassword.length < 8) {
+      throw new BadRequestException('A nova senha deve ter pelo menos 8 caracteres.');
+    }
+    user.senha = await bcrypt.hash(newPassword, 10);
+    user.mustChangePassword = false;
+    await this.usersRepository.save(user);
   }
 
   async getProfile(id: number): Promise<{

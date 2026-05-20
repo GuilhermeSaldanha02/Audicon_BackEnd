@@ -17,6 +17,7 @@ import { Company } from './entities/company.entity';
 import { User } from '../users/entities/user.entity';
 import { Condominium } from '../condominiums/entities/condominium.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto';
 
 export interface CreatedCompanyResult {
   company: Company;
@@ -60,6 +61,7 @@ export class CompaniesService {
         senha: tempPassword,
         isMaster: false,
         companyId: savedCompany.id,
+        mustChangePassword: true,
       });
       const savedUser = await this.usersRepository.save(user);
 
@@ -127,6 +129,7 @@ export class CompaniesService {
       senha: tempPassword,
       isMaster: false,
       companyId,
+      mustChangePassword: true,
     });
     const saved = await this.usersRepository.save(user);
     if (actor) {
@@ -218,6 +221,7 @@ export class CompaniesService {
     }
     const tempPassword = generateTempPassword();
     target.senha = await bcrypt.hash(tempPassword, 10);
+    target.mustChangePassword = true;
     await this.usersRepository.save(target);
     this.auditService.log({
       actor: opts.actor,
@@ -233,6 +237,23 @@ export class CompaniesService {
     };
   }
 
+  async update(id: number, dto: UpdateCompanyDto): Promise<Company> {
+    const company = await this.findOne(id);
+    if (dto.name !== undefined) company.name = dto.name;
+    if (dto.cnpj !== undefined) company.cnpj = dto.cnpj;
+    try {
+      return await this.companiesRepository.save(company);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err as any)?.driverError?.code === '23505'
+      ) {
+        throw new ConflictException('CNPJ já cadastrado.');
+      }
+      throw err;
+    }
+  }
+
   async findOne(id: number): Promise<Company> {
     const company = await this.companiesRepository.findOneBy({ id });
     if (!company) {
@@ -243,14 +264,35 @@ export class CompaniesService {
 
   async remove(id: number, actor: Actor): Promise<{ id: number }> {
     const company = await this.findOne(id);
-    const condoCount = await this.condominiumsRepository.count({
+
+    // Bloqueia se houver condomínios ATIVOS (não soft-deleted)
+    const activeCondo = await this.condominiumsRepository.count({
       where: { companyId: id },
     });
-    if (condoCount > 0) {
+    if (activeCondo > 0) {
       throw new ConflictException(
-        `A empresa possui ${condoCount} condomínio(s) ativo(s). Remova-os antes de excluir a empresa.`,
+        `A empresa possui ${activeCondo} condomínio(s) ativo(s). Remova-os antes de excluir a empresa.`,
       );
     }
+
+    // Remove dados em cascata dos condomínios soft-deleted que ainda referenciam a empresa
+    // (as FKs do BD são RESTRICT, então precisamos limpar manualmente na ordem correta)
+    const em = this.condominiumsRepository.manager;
+    await em.query(
+      `DELETE FROM infraction
+       WHERE "unitId" IN (
+         SELECT id FROM unit
+         WHERE "condominiumId" IN (SELECT id FROM condominium WHERE "companyId" = $1)
+       )`,
+      [id],
+    );
+    await em.query(
+      `DELETE FROM unit
+       WHERE "condominiumId" IN (SELECT id FROM condominium WHERE "companyId" = $1)`,
+      [id],
+    );
+    await em.query(`DELETE FROM condominium WHERE "companyId" = $1`, [id]);
+
     await this.usersRepository.delete({ companyId: id, isMaster: false });
     await this.companiesRepository.delete({ id });
     this.auditService.log({

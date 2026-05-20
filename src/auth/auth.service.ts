@@ -23,6 +23,7 @@ export class AuthService {
       sub: user.id,
       companyId: user.companyId ?? null,
       isMaster: !!user.isMaster,
+      mustChangePassword: !!user.mustChangePassword,
     };
     return {
       access_token: this.jwtService.sign(payload),

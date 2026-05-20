@@ -32,6 +32,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MasterGuard } from '../common/guards/master.guard';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto';
+import { Patch } from '@nestjs/common';
 
 @ApiTags('Companies (master only)')
 @ApiBearerAuth()
@@ -85,6 +87,18 @@ export class CompaniesController {
   @Get(':companyId/users')
   listUsers(@Param('companyId', ParseIntPipe) companyId: number) {
     return this.companiesService.listUsersOfCompany(companyId);
+  }
+
+  @ApiOperation({ summary: 'Atualizar nome/CNPJ da empresa (apenas master)' })
+  @ApiResponse({ status: 200, description: 'Empresa atualizada' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
+  @Patch(':id')
+  updateCompany(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCompanyDto,
+  ) {
+    return this.companiesService.update(id, dto);
   }
 
   @ApiOperation({

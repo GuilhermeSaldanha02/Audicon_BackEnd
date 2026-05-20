@@ -28,6 +28,9 @@ export class User {
   @Column({ type: 'boolean', default: false })
   isMaster: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
   @Index()
   @ManyToOne(() => Company, (company) => company.users, { nullable: true })
   company: Company | null;
