@@ -15,13 +15,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CompanyAdminGuard } from '../common/guards/company-admin.guard';
 import { CompaniesService } from './companies.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 
 @ApiTags('Company Employees')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, CompanyAdminGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('companies/me/users')
 export class EmployeesController {
   constructor(private readonly companiesService: CompaniesService) {}
