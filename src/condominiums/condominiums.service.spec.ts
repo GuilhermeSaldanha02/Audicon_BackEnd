@@ -29,6 +29,7 @@ describe('CondominiumsService', () => {
     save: jest.Mock;
     createQueryBuilder: jest.Mock;
     findOneBy: jest.Mock;
+    find: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
     softDelete: jest.Mock;
@@ -48,6 +49,7 @@ describe('CondominiumsService', () => {
       save: jest.fn(),
       createQueryBuilder: jest.fn(),
       findOneBy: jest.fn(),
+      find: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
       softDelete: jest.fn(),
@@ -87,30 +89,28 @@ describe('CondominiumsService', () => {
   });
 
   describe('create', () => {
-    it('deve criar condomínio e atribuir ADMIN ao criador', async () => {
-      const dto: any = { name: 'Condo A', cnpj: '00.000.000/0000-00' };
+    it('deve criar condomínio vinculado à empresa (sem membership automática)', async () => {
+      const dto: any = {
+        name: 'Condo A',
+        cnpj: '00.000.000/0000-00',
+        companyId: 1,
+      };
       const saved = { id: 1, ...dto };
       condoRepo.create.mockReturnValue(dto);
       condoRepo.save.mockResolvedValue(saved);
-      ucRepo.create.mockReturnValue({
-        userId: 7,
-        condominiumId: 1,
-        role: UserRole.ADMIN,
-      });
-      ucRepo.save.mockResolvedValue({});
 
-      const result = await service.create(dto, 7, 1);
+      const result = await service.create(dto);
       expect(result).toEqual(saved);
-      expect(ucRepo.create).toHaveBeenCalledWith({
-        userId: 7,
-        condominiumId: 1,
-        role: UserRole.ADMIN,
-      });
-      expect(ucRepo.save).toHaveBeenCalledTimes(1);
+      expect(condoRepo.create).toHaveBeenCalledWith(dto);
+      expect(ucRepo.save).not.toHaveBeenCalled();
     });
 
     it('deve lançar ConflictException quando código 23505 (duplicado)', async () => {
-      const dto: any = { name: 'Condo A', cnpj: '00.000.000/0000-00' };
+      const dto: any = {
+        name: 'Condo A',
+        cnpj: '00.000.000/0000-00',
+        companyId: 1,
+      };
       condoRepo.create.mockReturnValue(dto);
       const driverError = Object.assign(new Error('duplicate key'), {
         code: '23505',
@@ -118,16 +118,20 @@ describe('CondominiumsService', () => {
       condoRepo.save.mockRejectedValue(
         new QueryFailedError('INSERT', [], driverError),
       );
-      await expect(service.create(dto, 1, 1)).rejects.toBeInstanceOf(
+      await expect(service.create(dto)).rejects.toBeInstanceOf(
         ConflictException,
       );
     });
 
     it('deve lançar InternalServerErrorException para erros genéricos', async () => {
-      const dto: any = { name: 'Condo B', cnpj: '11.111.111/1111-11' };
+      const dto: any = {
+        name: 'Condo B',
+        cnpj: '11.111.111/1111-11',
+        companyId: 1,
+      };
       condoRepo.create.mockReturnValue(dto);
       condoRepo.save.mockRejectedValue(new Error('unexpected'));
-      await expect(service.create(dto, 1, 1)).rejects.toBeInstanceOf(
+      await expect(service.create(dto)).rejects.toBeInstanceOf(
         InternalServerErrorException,
       );
     });
@@ -155,6 +159,19 @@ describe('CondominiumsService', () => {
       await service.findAll(1, { page: 3, limit: 10 });
       expect(qb.skip).toHaveBeenCalledWith(20);
       expect(qb.take).toHaveBeenCalledWith(10);
+    });
+  });
+
+  describe('findByCompany', () => {
+    it('deve listar condomínios da empresa ordenados por nome', async () => {
+      const list = [{ id: 1 }, { id: 2 }];
+      condoRepo.find.mockResolvedValue(list);
+      const result = await service.findByCompany(7);
+      expect(result).toEqual(list);
+      expect(condoRepo.find).toHaveBeenCalledWith({
+        where: { companyId: 7 },
+        order: { name: 'ASC' },
+      });
     });
   });
 

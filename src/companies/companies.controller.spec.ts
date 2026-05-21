@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
+import { CondominiumsService } from '../condominiums/condominiums.service';
 
 describe('CompaniesController', () => {
   let controller: CompaniesController;
@@ -10,6 +11,7 @@ describe('CompaniesController', () => {
     findOne: jest.Mock;
     listUsersOfCompany: jest.Mock;
   };
+  let condominiumsService: { findByCompany: jest.Mock };
 
   beforeEach(async () => {
     service = {
@@ -18,9 +20,13 @@ describe('CompaniesController', () => {
       findOne: jest.fn(),
       listUsersOfCompany: jest.fn(),
     };
+    condominiumsService = { findByCompany: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController],
-      providers: [{ provide: CompaniesService, useValue: service }],
+      providers: [
+        { provide: CompaniesService, useValue: service },
+        { provide: CondominiumsService, useValue: condominiumsService },
+      ],
     }).compile();
     controller = module.get(CompaniesController);
   });
@@ -68,5 +74,12 @@ describe('CompaniesController', () => {
     const result = await controller.listUsers(7);
     expect(service.listUsersOfCompany).toHaveBeenCalledWith(7);
     expect(result).toHaveLength(1);
+  });
+
+  it('listCondominiums delega ao condominiumsService com companyId', async () => {
+    condominiumsService.findByCompany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    const result = await controller.listCondominiums(7);
+    expect(condominiumsService.findByCompany).toHaveBeenCalledWith(7);
+    expect(result).toHaveLength(2);
   });
 });

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -27,7 +31,9 @@ export class UsersService {
     const user = await this.usersRepository.findOneBy({ id });
     if (!user) throw new NotFoundException('Usuário não encontrado.');
     if (newPassword.length < 8) {
-      throw new BadRequestException('A nova senha deve ter pelo menos 8 caracteres.');
+      throw new BadRequestException(
+        'A nova senha deve ter pelo menos 8 caracteres.',
+      );
     }
     user.senha = await bcrypt.hash(newPassword, 10);
     user.mustChangePassword = false;

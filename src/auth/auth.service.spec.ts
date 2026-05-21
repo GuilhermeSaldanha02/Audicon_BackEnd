@@ -84,6 +84,7 @@ describe('AuthService', () => {
         sub: 42,
         companyId: null,
         isMaster: false,
+        mustChangePassword: false,
       });
     });
     it('inclui companyId e isMaster do user no payload', async () => {
@@ -100,6 +101,7 @@ describe('AuthService', () => {
         sub: 7,
         companyId: 3,
         isMaster: false,
+        mustChangePassword: false,
       });
     });
   });

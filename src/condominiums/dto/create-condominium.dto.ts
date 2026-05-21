@@ -1,7 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateCondominiumDto {
+  @ApiProperty({ example: 1, description: 'ID da empresa dona do condomínio' })
+  @IsInt()
+  companyId: number;
+
   @ApiProperty({ example: 'Condomínio Jardim das Flores' })
   @IsString()
   @IsNotEmpty()
