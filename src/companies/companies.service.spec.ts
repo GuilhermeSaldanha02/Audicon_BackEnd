@@ -370,7 +370,11 @@ describe('CompaniesService', () => {
     });
 
     it('converte erro 23505 em ConflictException', async () => {
-      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X', cnpj: '0' });
+      companiesRepo.findOneBy.mockResolvedValue({
+        id: 1,
+        name: 'X',
+        cnpj: '0',
+      });
       const driverError = Object.assign(new Error('dup'), { code: '23505' });
       companiesRepo.save.mockRejectedValue(
         new QueryFailedError('UPDATE', [], driverError),
@@ -390,7 +394,11 @@ describe('CompaniesService', () => {
     };
 
     it('bloqueia exclusão quando há condomínios ativos', async () => {
-      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X', cnpj: '0' });
+      companiesRepo.findOneBy.mockResolvedValue({
+        id: 1,
+        name: 'X',
+        cnpj: '0',
+      });
       condosRepo.count.mockResolvedValue(2);
       await expect(service.remove(1, actor)).rejects.toBeInstanceOf(
         ConflictException,
@@ -399,7 +407,11 @@ describe('CompaniesService', () => {
     });
 
     it('remove em cascata e exclui a empresa quando não há condomínios ativos', async () => {
-      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X', cnpj: '0' });
+      companiesRepo.findOneBy.mockResolvedValue({
+        id: 1,
+        name: 'X',
+        cnpj: '0',
+      });
       condosRepo.count.mockResolvedValue(0);
       const result = await service.remove(1, actor);
       expect(condosRepo.manager.query).toHaveBeenCalled();
