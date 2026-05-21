@@ -28,6 +28,8 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
     if (!user) return false;
 
+    if (user.isMaster) return true;
+
     const rawId = request.params?.condominiumId ?? request.params?.id;
     const condominiumId = rawId ? +rawId : NaN;
     if (isNaN(condominiumId)) return false;

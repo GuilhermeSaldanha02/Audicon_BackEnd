@@ -31,6 +31,7 @@ import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { MasterGuard } from '../common/guards/master.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -53,20 +54,19 @@ function toActor(req: any): Actor {
 export class CondominiumsController {
   constructor(private readonly condominiumsService: CondominiumsService) {}
 
-  @ApiOperation({ summary: 'Criar condomínio (criador recebe papel ADMIN)' })
+  @ApiOperation({
+    summary: 'Criar condomínio para uma empresa (apenas master)',
+  })
   @ApiResponse({ status: 201, description: 'Condomínio criado' })
+  @ApiResponse({ status: 403, description: 'Apenas master pode criar' })
   @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
+  @UseGuards(MasterGuard)
   @Post()
   create(
     @Request() req: any,
     @Body() createCondominiumDto: CreateCondominiumDto,
   ) {
-    return this.condominiumsService.create(
-      createCondominiumDto,
-      req.user.id,
-      req.user.companyId,
-      toActor(req),
-    );
+    return this.condominiumsService.create(createCondominiumDto, toActor(req));
   }
 
   @ApiOperation({ summary: 'Listar condomínios do usuário autenticado' })
@@ -109,12 +109,11 @@ export class CondominiumsController {
     return this.condominiumsService.update(id, updateCondominiumDto);
   }
 
-  @ApiOperation({ summary: 'Remover condomínio (requer ADMIN)' })
+  @ApiOperation({ summary: 'Remover condomínio (apenas master)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Condomínio removido' })
-  @ApiResponse({ status: 403, description: 'Apenas ADMIN pode remover' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @ApiResponse({ status: 403, description: 'Apenas master pode remover' })
+  @UseGuards(MasterGuard)
   @Delete(':id')
   remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.condominiumsService.remove(id, toActor(req));

@@ -31,6 +31,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MasterGuard } from '../common/guards/master.guard';
 import { CompaniesService } from './companies.service';
+import { CondominiumsService } from '../condominiums/condominiums.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { Patch } from '@nestjs/common';
@@ -40,7 +41,10 @@ import { Patch } from '@nestjs/common';
 @UseGuards(JwtAuthGuard, MasterGuard)
 @Controller('companies')
 export class CompaniesController {
-  constructor(private readonly companiesService: CompaniesService) {}
+  constructor(
+    private readonly companiesService: CompaniesService,
+    private readonly condominiumsService: CondominiumsService,
+  ) {}
 
   @ApiOperation({
     summary:
@@ -89,6 +93,15 @@ export class CompaniesController {
     return this.companiesService.listUsersOfCompany(companyId);
   }
 
+  @ApiOperation({
+    summary: 'Listar condomínios de uma empresa (apenas master)',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de condomínios da empresa' })
+  @Get(':companyId/condominiums')
+  listCondominiums(@Param('companyId', ParseIntPipe) companyId: number) {
+    return this.condominiumsService.findByCompany(companyId);
+  }
+
   @ApiOperation({ summary: 'Atualizar nome/CNPJ da empresa (apenas master)' })
   @ApiResponse({ status: 200, description: 'Empresa atualizada' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
@@ -102,11 +115,15 @@ export class CompaniesController {
   }
 
   @ApiOperation({
-    summary: 'Excluir empresa (apenas master). Bloqueado se houver condomínios ativos.',
+    summary:
+      'Excluir empresa (apenas master). Bloqueado se houver condomínios ativos.',
   })
   @ApiResponse({ status: 200, description: 'Empresa removida' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
-  @ApiResponse({ status: 409, description: 'Empresa possui condomínios ativos' })
+  @ApiResponse({
+    status: 409,
+    description: 'Empresa possui condomínios ativos',
+  })
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
@@ -114,7 +131,8 @@ export class CompaniesController {
   }
 
   @ApiOperation({
-    summary: 'Criar usuário (funcionário/admin) para uma empresa (apenas master). Retorna senha temporária.',
+    summary:
+      'Criar usuário (funcionário/admin) para uma empresa (apenas master). Retorna senha temporária.',
   })
   @ApiResponse({ status: 201, description: 'Usuário criado' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
@@ -125,7 +143,11 @@ export class CompaniesController {
     @Param('companyId', ParseIntPipe) companyId: number,
     @Body() dto: CreateEmployeeDto,
   ) {
-    return this.companiesService.createEmployee(companyId, dto, masterActor(req));
+    return this.companiesService.createEmployee(
+      companyId,
+      dto,
+      masterActor(req),
+    );
   }
 
   @ApiOperation({

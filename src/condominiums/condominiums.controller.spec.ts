@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CondominiumsController } from './condominiums.controller';
 import { CondominiumsService } from './condominiums.service';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { MasterGuard } from '../common/guards/master.guard';
 
 const mockReq = {
   user: { id: 42, email: 'admin@x.com', companyId: 1, isMaster: false },
@@ -31,6 +32,8 @@ describe('CondominiumsController', () => {
     })
       .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
+      .overrideGuard(MasterGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get<CondominiumsController>(CondominiumsController);
@@ -43,22 +46,18 @@ describe('CondominiumsController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('create deve delegar para o service com dto e userId', async () => {
+  it('create deve delegar para o service com dto e actor', async () => {
     const dto: any = {
       name: 'Condo A',
       cnpj: '00.000.000/0000-00',
       address: 'Rua 1',
+      companyId: 1,
     };
     const created = { id: 1, ...dto } as any;
     service.create.mockResolvedValue(created);
     const result = await controller.create(mockReq, dto);
     expect(result).toEqual(created);
-    expect(service.create).toHaveBeenCalledWith(
-      dto,
-      mockReq.user.id,
-      mockReq.user.companyId,
-      expect.any(Object),
-    );
+    expect(service.create).toHaveBeenCalledWith(dto, expect.any(Object));
   });
 
   it('findAll deve delegar para o service com userId e paginação', async () => {

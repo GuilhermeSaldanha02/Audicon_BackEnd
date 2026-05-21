@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
@@ -79,6 +80,62 @@ describe('UsersService', () => {
       repository.findOneBy.mockResolvedValue(undefined);
       const result = await service.findOneById(999);
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('changePassword', () => {
+    it('deve trocar a senha e limpar mustChangePassword', async () => {
+      const user: any = { id: 1, senha: 'old', mustChangePassword: true };
+      repository.findOneBy.mockResolvedValue(user);
+      repository.save.mockResolvedValue(user);
+      await service.changePassword(1, 'NovaSenha@2026');
+      expect(user.mustChangePassword).toBe(false);
+      expect(user.senha).not.toBe('old');
+      expect(repository.save).toHaveBeenCalledWith(user);
+    });
+
+    it('deve lançar NotFound quando usuário não existe', async () => {
+      repository.findOneBy.mockResolvedValue(null);
+      await expect(
+        service.changePassword(99, 'NovaSenha@2026'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('deve lançar BadRequest quando a senha tem menos de 8 caracteres', async () => {
+      repository.findOneBy.mockResolvedValue({ id: 1 });
+      await expect(service.changePassword(1, 'curta')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProfile', () => {
+    it('deve retornar dados do perfil com nome da empresa', async () => {
+      repository.findOne.mockResolvedValue({
+        nome: 'Admin',
+        email: 'admin@x.com',
+        isMaster: false,
+        company: { name: 'Empresa X' },
+      });
+      const result = await service.getProfile(1);
+      expect(result).toEqual({
+        nome: 'Admin',
+        email: 'admin@x.com',
+        isMaster: false,
+        companyName: 'Empresa X',
+      });
+    });
+
+    it('deve retornar perfil vazio quando usuário não existe', async () => {
+      repository.findOne.mockResolvedValue(null);
+      const result = await service.getProfile(99);
+      expect(result).toEqual({
+        nome: '',
+        email: '',
+        isMaster: false,
+        companyName: null,
+      });
     });
   });
 });

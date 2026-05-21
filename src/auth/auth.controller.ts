@@ -62,7 +62,9 @@ export class AuthController {
     return this.usersService.getProfile(req.user.id);
   }
 
-  @ApiOperation({ summary: 'Trocar senha (obrigatório após primeiro login ou reset)' })
+  @ApiOperation({
+    summary: 'Trocar senha (obrigatório após primeiro login ou reset)',
+  })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: 'Senha alterada com sucesso' })
   @ApiResponse({ status: 400, description: 'Senha inválida' })

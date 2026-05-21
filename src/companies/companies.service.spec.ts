@@ -6,12 +6,14 @@ import { CompaniesService } from './companies.service';
 import { Company } from './entities/company.entity';
 import { User } from '../users/entities/user.entity';
 import { UserCondominium } from '../users/entities/user-condominium.entity';
+import { Condominium } from '../condominiums/entities/condominium.entity';
 import { AuditService } from '../audit/audit.service';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
   let companiesRepo: any;
   let usersRepo: any;
+  let condosRepo: any;
   let ucQb: any;
 
   beforeEach(async () => {
@@ -31,6 +33,7 @@ describe('CompaniesService', () => {
             save: jest.fn(),
             find: jest.fn(),
             findOneBy: jest.fn(),
+            delete: jest.fn(),
           },
         },
         {
@@ -39,11 +42,20 @@ describe('CompaniesService', () => {
             create: jest.fn((dto) => dto),
             save: jest.fn(),
             findOne: jest.fn(),
+            delete: jest.fn(),
           },
         },
         {
           provide: getRepositoryToken(UserCondominium),
           useValue: { createQueryBuilder: jest.fn(() => ucQb) },
+        },
+        {
+          provide: getRepositoryToken(Condominium),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+            find: jest.fn(),
+            manager: { query: jest.fn().mockResolvedValue([]) },
+          },
         },
         {
           provide: AuditService,
@@ -57,6 +69,7 @@ describe('CompaniesService', () => {
     service = module.get(CompaniesService);
     companiesRepo = module.get(getRepositoryToken(Company));
     usersRepo = module.get(getRepositoryToken(User));
+    condosRepo = module.get(getRepositoryToken(Condominium));
   });
 
   describe('create', () => {
@@ -337,6 +350,65 @@ describe('CompaniesService', () => {
     it('lança NotFound quando não existe', async () => {
       companiesRepo.findOneBy.mockResolvedValue(null);
       await expect(service.findOne(99)).rejects.toThrow(/não encontrada/);
+    });
+  });
+
+  describe('update', () => {
+    it('atualiza nome e cnpj e salva', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({
+        id: 1,
+        name: 'Antigo',
+        cnpj: '00',
+      });
+      companiesRepo.save.mockImplementation((c: any) => Promise.resolve(c));
+      const result = await service.update(1, {
+        name: 'Novo',
+        cnpj: '11',
+      } as any);
+      expect(result.name).toBe('Novo');
+      expect(result.cnpj).toBe('11');
+    });
+
+    it('converte erro 23505 em ConflictException', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X', cnpj: '0' });
+      const driverError = Object.assign(new Error('dup'), { code: '23505' });
+      companiesRepo.save.mockRejectedValue(
+        new QueryFailedError('UPDATE', [], driverError),
+      );
+      await expect(
+        service.update(1, { cnpj: '11' } as any),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('remove', () => {
+    const actor = {
+      userId: 1,
+      email: 'master@x.com',
+      isMaster: true,
+      companyId: null,
+    };
+
+    it('bloqueia exclusão quando há condomínios ativos', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X', cnpj: '0' });
+      condosRepo.count.mockResolvedValue(2);
+      await expect(service.remove(1, actor)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(companiesRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('remove em cascata e exclui a empresa quando não há condomínios ativos', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X', cnpj: '0' });
+      condosRepo.count.mockResolvedValue(0);
+      const result = await service.remove(1, actor);
+      expect(condosRepo.manager.query).toHaveBeenCalled();
+      expect(usersRepo.delete).toHaveBeenCalledWith({
+        companyId: 1,
+        isMaster: false,
+      });
+      expect(companiesRepo.delete).toHaveBeenCalledWith({ id: 1 });
+      expect(result).toEqual({ id: 1 });
     });
   });
 });

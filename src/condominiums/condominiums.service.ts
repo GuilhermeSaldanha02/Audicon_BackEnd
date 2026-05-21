@@ -29,30 +29,11 @@ export class CondominiumsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(
-    createCondominiumDto: CreateCondominiumDto,
-    userId: number,
-    companyId: number,
-    actor?: Actor,
-  ) {
-    if (!companyId) {
-      throw new BadRequestException(
-        'Usuário sem empresa associada não pode criar condomínio.',
-      );
-    }
+  async create(createCondominiumDto: CreateCondominiumDto, actor?: Actor) {
     try {
-      const newCondominium = this.condominiumsRepository.create({
-        ...createCondominiumDto,
-        companyId,
-      });
-      const saved = await this.condominiumsRepository.save(newCondominium);
-
-      const membership = this.ucRepository.create({
-        userId,
-        condominiumId: saved.id,
-        role: UserRole.ADMIN,
-      });
-      await this.ucRepository.save(membership);
+      const saved = await this.condominiumsRepository.save(
+        this.condominiumsRepository.create(createCondominiumDto),
+      );
 
       if (actor) {
         this.auditService.log({
@@ -94,6 +75,13 @@ export class CondominiumsService {
       .take(limit)
       .getManyAndCount();
     return { data, total, page, limit };
+  }
+
+  async findByCompany(companyId: number): Promise<Condominium[]> {
+    return this.condominiumsRepository.find({
+      where: { companyId },
+      order: { name: 'ASC' },
+    });
   }
 
   async findOne(id: number) {
