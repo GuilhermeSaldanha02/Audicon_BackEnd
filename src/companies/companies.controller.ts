@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -25,7 +26,6 @@ import { CompaniesService } from './companies.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
-import { Patch } from '@nestjs/common';
 
 @ApiTags('Companies (master only)')
 @ApiBearerAuth()
