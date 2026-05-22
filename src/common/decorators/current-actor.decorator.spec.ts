@@ -3,7 +3,9 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { CurrentActor } from './current-actor.decorator';
 import { Actor } from '../../audit/audit.service';
 
-function getParamDecoratorFactory(decorator: (...args: unknown[]) => unknown) {
+function getParamDecoratorFactory(
+  decorator: (...args: unknown[]) => ParameterDecorator,
+) {
   class TestController {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     handler(@decorator() _actor: Actor) {}
