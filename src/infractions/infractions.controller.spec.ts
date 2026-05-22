@@ -3,6 +3,7 @@ import { InfractionsController } from './infractions.controller';
 import { InfractionsService } from './infractions.service';
 import { InfractionAccessGuard } from '../common/guards/infraction-access.guard';
 import { Actor } from '../audit/audit.service';
+
 describe('InfractionsController', () => {
   let controller: InfractionsController;
   let service: {
@@ -16,6 +17,7 @@ describe('InfractionsController', () => {
     generateDocument: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
+    exportCsv: jest.Mock;
   };
   beforeEach(async () => {
     service = {
@@ -29,6 +31,7 @@ describe('InfractionsController', () => {
       generateDocument: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      exportCsv: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InfractionsController],
@@ -90,6 +93,19 @@ describe('InfractionsController', () => {
       false,
     );
     expect(result).toEqual(paginated);
+  });
+  it('exportCsv escreve headers e finaliza response com CSV', async () => {
+    const csv = 'id,description\n1,Teste';
+    service.exportCsv = jest.fn().mockResolvedValue(csv);
+    const res: any = { set: jest.fn(), end: jest.fn() };
+    const query: any = {};
+    await controller.exportCsv(mockActor, query, res);
+    expect(service.exportCsv).toHaveBeenCalledWith(query, mockActor.companyId, mockActor.isMaster);
+    expect(res.set).toHaveBeenCalledWith({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename=infractions.csv',
+    });
+    expect(res.end).toHaveBeenCalledWith(csv);
   });
   it('findOne chama service.findOne', async () => {
     service.findOne.mockResolvedValue({ id: 3 });
