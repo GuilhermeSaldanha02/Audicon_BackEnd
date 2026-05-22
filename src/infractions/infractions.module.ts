@@ -4,6 +4,8 @@ import { InfractionsController } from './infractions.controller';
 import { ReportsController } from './reports.controller';
 import { ImagesController } from './images.controller';
 import { InfractionsService } from './infractions.service';
+import { InfractionAnalysisService } from './infraction-analysis.service';
+import { InfractionNotificationService } from './infraction-notification.service';
 import { ImagesService } from './images.service';
 import { Infraction } from './entities/infraction.entity';
 import { InfractionImage } from './entities/infraction-image.entity';
@@ -30,7 +32,13 @@ import { AuditModule } from '../audit/audit.module';
     AuditModule,
   ],
   controllers: [InfractionsController, ReportsController, ImagesController],
-  providers: [InfractionsService, ImagesService, InfractionAccessGuard],
+  providers: [
+    InfractionsService,
+    InfractionAnalysisService,
+    InfractionNotificationService,
+    ImagesService,
+    InfractionAccessGuard,
+  ],
   exports: [ImagesService],
 })
 export class InfractionsModule {}

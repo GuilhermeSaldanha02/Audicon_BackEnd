@@ -23,6 +23,8 @@ import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { InfractionAccessGuard } from 'src/common/guards/infraction-access.guard';
 import { InfractionsService } from './infractions.service';
+import { InfractionAnalysisService } from './infraction-analysis.service';
+import { InfractionNotificationService } from './infraction-notification.service';
 import { CreateInfractionDto } from './dto/create-infraction.dto';
 import { UpdateInfractionDto } from './dto/update-infraction.dto';
 import { ApproveInfractionDto } from './dto/approve-infraction.dto';
@@ -36,7 +38,11 @@ import { Actor } from 'src/audit/audit.service';
 @UseGuards(JwtAuthGuard)
 @Controller('infractions')
 export class InfractionsController {
-  constructor(private readonly infractionsService: InfractionsService) {}
+  constructor(
+    private readonly infractionsService: InfractionsService,
+    private readonly infractionAnalysisService: InfractionAnalysisService,
+    private readonly infractionNotificationService: InfractionNotificationService,
+  ) {}
 
   @ApiOperation({ summary: 'Criar infração' })
   @ApiResponse({
@@ -117,7 +123,7 @@ export class InfractionsController {
   @UseGuards(InfractionAccessGuard)
   @Post(':id/analyze')
   analyze(@Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.analyze(id);
+    return this.infractionAnalysisService.analyze(id);
   }
 
   @ApiOperation({ summary: 'Download do documento PDF da infração' })
@@ -133,7 +139,8 @@ export class InfractionsController {
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
-    const pdfBuffer = await this.infractionsService.generateDocument(id);
+    const pdfBuffer =
+      await this.infractionNotificationService.generateDocument(id);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename=infraction-${id}.pdf`,
@@ -184,7 +191,7 @@ export class InfractionsController {
   @UseGuards(InfractionAccessGuard)
   @Post(':id/send')
   send(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.send(id, actor);
+    return this.infractionNotificationService.send(id, actor);
   }
 
   @ApiOperation({
@@ -207,7 +214,7 @@ export class InfractionsController {
     @CurrentActor() actor: Actor,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.infractionsService.sendWhatsapp(id, actor);
+    return this.infractionNotificationService.sendWhatsapp(id, actor);
   }
 
   @ApiOperation({ summary: 'Atualizar infração' })

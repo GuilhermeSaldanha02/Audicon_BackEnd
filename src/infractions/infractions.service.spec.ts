@@ -3,22 +3,13 @@ import { InfractionsService } from './infractions.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Infraction, InfractionStatus } from './entities/infraction.entity';
 import { UnitsService } from '../units/units.service';
-import { IaService } from '../ia/ia.service';
-import { PdfService } from '../pdf/pdf.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
-import { MailService } from '../mail/mail.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
-import { ImagesService } from './images.service';
 import { AuditService } from '../audit/audit.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 describe('InfractionsService', () => {
   let service: InfractionsService;
   let repo: any;
   let units: any;
-  let ia: any;
-  let pdf: any;
-  let mail: any;
-  let whatsapp: any;
   let condos: any;
   let qb: any;
   const mockInfraction: Infraction = {
@@ -81,43 +72,9 @@ describe('InfractionsService', () => {
           },
         },
         {
-          provide: IaService,
-          useValue: {
-            analisarInfracao: jest.fn(),
-            extractRegimentoText: jest.fn().mockResolvedValue(undefined),
-          },
-        },
-        {
-          provide: PdfService,
-          useValue: {
-            gerarDocumentoInfracao: jest.fn(),
-            streamInfractionReport: jest.fn(),
-          },
-        },
-        {
           provide: CondominiumsService,
           useValue: {
             findOne: jest.fn(),
-          },
-        },
-        {
-          provide: MailService,
-          useValue: {
-            sendInfractionEmail: jest.fn().mockResolvedValue({ id: 'mock-1' }),
-          },
-        },
-        {
-          provide: WhatsappService,
-          useValue: {
-            sendInfractionAlert: jest
-              .fn()
-              .mockResolvedValue({ id: 'wa-mock-1' }),
-          },
-        },
-        {
-          provide: ImagesService,
-          useValue: {
-            getContentBuffers: jest.fn().mockResolvedValue([]),
           },
         },
         {
@@ -132,11 +89,7 @@ describe('InfractionsService', () => {
     service = module.get<InfractionsService>(InfractionsService);
     repo = module.get(getRepositoryToken(Infraction));
     units = module.get(UnitsService);
-    ia = module.get(IaService);
-    pdf = module.get(PdfService);
     condos = module.get(CondominiumsService);
-    mail = module.get(MailService);
-    whatsapp = module.get(WhatsappService);
   });
   it('should be defined', () => {
     expect(service).toBeDefined();
@@ -270,71 +223,6 @@ describe('InfractionsService', () => {
       expect(repo.softDelete).toHaveBeenCalledWith(1);
     });
   });
-  describe('analyze', () => {
-    it('atualiza com campos em português e status ANALYZED', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({ ...mockInfraction });
-      (ia.analisarInfracao as jest.Mock).mockResolvedValue({
-        descricao_formal: 'Formal PT',
-        penalidade_sugerida: 'Advertência',
-      });
-      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
-      (qb.getCount as jest.Mock)
-        .mockResolvedValueOnce(2) // total
-        .mockResolvedValueOnce(1); // last12months
-      const result = await service.analyze(1);
-      expect(result.formalDescription).toBe('Formal PT');
-      expect(result.suggestedPenalty).toBe('Advertência');
-      expect(result.status).toBe(InfractionStatus.ANALYZED);
-      expect(ia.analisarInfracao).toHaveBeenCalledWith(
-        expect.any(Object),
-        undefined,
-        { total: 2, last12months: 1 },
-      );
-    });
-    it('aceita campos em inglês', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({ ...mockInfraction });
-      (ia.analisarInfracao as jest.Mock).mockResolvedValue({
-        formalDescription: 'Formal EN',
-        suggestedPenalty: 'Warning',
-      });
-      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
-      const result = await service.analyze(2);
-      expect(result.formalDescription).toBe('Formal EN');
-      expect(result.suggestedPenalty).toBe('Warning');
-      expect(result.status).toBe(InfractionStatus.ANALYZED);
-    });
-  });
-  describe('countByUnit', () => {
-    it('retorna total e last12months a partir dos query builders', async () => {
-      (qb.getCount as jest.Mock)
-        .mockResolvedValueOnce(5) // total
-        .mockResolvedValueOnce(3); // last12months
-      const result = await service.countByUnit(10);
-      expect(result).toEqual({ total: 5, last12months: 3 });
-      expect(qb.where).toHaveBeenCalledWith('unit.id = :unitId', {
-        unitId: 10,
-      });
-      expect(qb.andWhere).not.toHaveBeenCalledWith(
-        'i.id != :excludeId',
-        expect.anything(),
-      );
-    });
-    it('exclui infração informada via excludeId', async () => {
-      (qb.getCount as jest.Mock)
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(0);
-      const result = await service.countByUnit(10, 99);
-      expect(result).toEqual({ total: 0, last12months: 0 });
-      expect(qb.andWhere).toHaveBeenCalledWith('i.id != :excludeId', {
-        excludeId: 99,
-      });
-    });
-    it('retorna zeros quando unidade não tem infrações', async () => {
-      (qb.getCount as jest.Mock).mockResolvedValue(0);
-      const result = await service.countByUnit(42);
-      expect(result).toEqual({ total: 0, last12months: 0 });
-    });
-  });
   describe('approve', () => {
     it('aprova infração no status ANALYZED', async () => {
       const analyzed = {
@@ -386,149 +274,6 @@ describe('InfractionsService', () => {
     it('propaga NotFound quando infração não existe', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue(null);
       await expect(service.approve(999)).rejects.toThrow(NotFoundException);
-    });
-  });
-  describe('send', () => {
-    const approved = {
-      ...mockInfraction,
-      status: InfractionStatus.APPROVED,
-      formalDescription: 'Descrição formal aprovada',
-    };
-    it('envia e-mail e transiciona para SENT', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({ ...approved });
-      (pdf.gerarDocumentoInfracao as jest.Mock).mockResolvedValue(
-        Buffer.from('pdf-bytes'),
-      );
-      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
-      const result = await service.send(1);
-      expect(mail.sendInfractionEmail).toHaveBeenCalledWith({
-        infraction: expect.objectContaining({ id: 1 }),
-        to: 'morador@teste.com',
-        pdfBuffer: expect.any(Buffer),
-      });
-      expect(result.status).toBe(InfractionStatus.SENT);
-      expect(result.sentAt).toBeInstanceOf(Date);
-    });
-    it('rejeita quando status é PENDING', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...mockInfraction,
-        status: InfractionStatus.PENDING,
-      });
-      await expect(service.send(1)).rejects.toThrow(BadRequestException);
-      expect(mail.sendInfractionEmail).not.toHaveBeenCalled();
-    });
-    it('rejeita quando status é ANALYZED', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...mockInfraction,
-        status: InfractionStatus.ANALYZED,
-      });
-      await expect(service.send(1)).rejects.toThrow(BadRequestException);
-    });
-    it('rejeita quando status já é SENT', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...mockInfraction,
-        status: InfractionStatus.SENT,
-      });
-      await expect(service.send(1)).rejects.toThrow(BadRequestException);
-    });
-    it('rejeita quando unidade não tem residentEmail', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...approved,
-        unit: { ...approved.unit, residentEmail: null },
-      });
-      await expect(service.send(1)).rejects.toThrow(BadRequestException);
-      expect(mail.sendInfractionEmail).not.toHaveBeenCalled();
-    });
-    it('propaga NotFound quando infração não existe', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue(null);
-      await expect(service.send(999)).rejects.toThrow(NotFoundException);
-    });
-  });
-  describe('sendWhatsapp', () => {
-    const approved = {
-      ...mockInfraction,
-      status: InfractionStatus.APPROVED,
-    };
-    it('envia WhatsApp e preenche whatsappSentAt no status APPROVED', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({ ...approved });
-      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
-      const result = await service.sendWhatsapp(1);
-      expect(whatsapp.sendInfractionAlert).toHaveBeenCalledWith({
-        infraction: expect.objectContaining({ id: 1 }),
-        phone: '11999998888',
-      });
-      expect(result.whatsappSentAt).toBeInstanceOf(Date);
-      // status não muda
-      expect(result.status).toBe(InfractionStatus.APPROVED);
-    });
-    it('permite envio também no status SENT (canal complementar ao e-mail)', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...approved,
-        status: InfractionStatus.SENT,
-      });
-      (repo.save as jest.Mock).mockImplementation((inf: any) => inf);
-      const result = await service.sendWhatsapp(1);
-      expect(result.status).toBe(InfractionStatus.SENT);
-      expect(result.whatsappSentAt).toBeInstanceOf(Date);
-    });
-    it('rejeita quando status é PENDING ou ANALYZED', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...mockInfraction,
-        status: InfractionStatus.ANALYZED,
-      });
-      await expect(service.sendWhatsapp(1)).rejects.toThrow(
-        BadRequestException,
-      );
-      expect(whatsapp.sendInfractionAlert).not.toHaveBeenCalled();
-    });
-    it('rejeita quando unidade não tem residentPhone', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...approved,
-        unit: { ...approved.unit, residentPhone: null },
-      });
-      await expect(service.sendWhatsapp(1)).rejects.toThrow(
-        BadRequestException,
-      );
-      expect(whatsapp.sendInfractionAlert).not.toHaveBeenCalled();
-    });
-    it('propaga NotFound quando infração não existe', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue(null);
-      await expect(service.sendWhatsapp(999)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
-  describe('generateDocument', () => {
-    it('gera PDF quando a infração existe e foi analisada', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...mockInfraction,
-        formalDescription: 'Formal',
-      });
-      (pdf.gerarDocumentoInfracao as jest.Mock).mockResolvedValue(
-        Buffer.from('pdf'),
-      );
-      const result = await service.generateDocument(1);
-      expect(repo.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
-        relations: ['unit', 'unit.condominium'],
-      });
-      expect(pdf.gerarDocumentoInfracao).toHaveBeenCalled();
-      expect(Buffer.isBuffer(result)).toBe(true);
-    });
-    it('lança NotFound quando infração não existe', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue(null);
-      await expect(service.generateDocument(999)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-    it('lança NotFound quando formalDescription está ausente', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue({
-        ...mockInfraction,
-        formalDescription: undefined,
-      });
-      await expect(service.generateDocument(1)).rejects.toThrow(
-        NotFoundException,
-      );
     });
   });
   describe('findForReport', () => {
