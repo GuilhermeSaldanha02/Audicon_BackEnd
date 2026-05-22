@@ -26,7 +26,10 @@ export class UnitsService {
       });
       return await this.unitsRepository.save(newUnit);
     } catch (error) {
-      throwOnUniqueViolation(error, 'A unit with this identifier already exists.');
+      throwOnUniqueViolation(
+        error,
+        'A unit with this identifier already exists.',
+      );
       throw new InternalServerErrorException('Failed to create unit.');
     }
   }

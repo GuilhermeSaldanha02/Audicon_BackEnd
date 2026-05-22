@@ -3,10 +3,7 @@ import { UnitsService } from './units.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Unit } from './entities/unit.entity';
 import { CondominiumsService } from '../condominiums/condominiums.service';
-import {
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 describe('UnitsService', () => {
   let service: UnitsService;

@@ -46,7 +46,10 @@ export class CondominiumsService {
       }
       return saved;
     } catch (error) {
-      throwOnUniqueViolation(error, 'A condominium with this CNPJ already exists.');
+      throwOnUniqueViolation(
+        error,
+        'A condominium with this CNPJ already exists.',
+      );
       /* throwOnUniqueViolation always throws; line below satisfies TS */
       throw new InternalServerErrorException('Failed to create condominium.');
     }
