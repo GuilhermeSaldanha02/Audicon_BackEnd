@@ -100,7 +100,11 @@ describe('InfractionsController', () => {
     const res: any = { set: jest.fn(), end: jest.fn() };
     const query: any = {};
     await controller.exportCsv(mockActor, query, res);
-    expect(service.exportCsv).toHaveBeenCalledWith(query, mockActor.companyId, mockActor.isMaster);
+    expect(service.exportCsv).toHaveBeenCalledWith(
+      query,
+      mockActor.companyId,
+      mockActor.isMaster,
+    );
     expect(res.set).toHaveBeenCalledWith({
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': 'attachment; filename=infractions.csv',

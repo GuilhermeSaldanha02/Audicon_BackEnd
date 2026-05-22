@@ -3,11 +3,16 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { CurrentActor } from './current-actor.decorator';
 import { Actor } from '../../audit/audit.service';
 
-function getParamDecoratorFactory(decorator: Function) {
+function getParamDecoratorFactory(decorator: (...args: unknown[]) => unknown) {
   class TestController {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     handler(@decorator() _actor: Actor) {}
   }
-  const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestController, 'handler');
+  const args = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    TestController,
+    'handler',
+  );
   return args[Object.keys(args)[0]].factory;
 }
 
@@ -33,7 +38,9 @@ describe('CurrentActor decorator', () => {
   it('trata isMaster ausente como false', () => {
     const ctx = {
       switchToHttp: () => ({
-        getRequest: () => ({ user: { id: 1, email: 'x@y.com', companyId: null } }),
+        getRequest: () => ({
+          user: { id: 1, email: 'x@y.com', companyId: null },
+        }),
       }),
     } as unknown as ExecutionContext;
     const actor: Actor = factory(null, ctx);
@@ -44,7 +51,9 @@ describe('CurrentActor decorator', () => {
   it('trata companyId undefined como null', () => {
     const ctx = {
       switchToHttp: () => ({
-        getRequest: () => ({ user: { id: 2, email: 'z@z.com', isMaster: true } }),
+        getRequest: () => ({
+          user: { id: 2, email: 'z@z.com', isMaster: true },
+        }),
       }),
     } as unknown as ExecutionContext;
     const actor: Actor = factory(null, ctx);

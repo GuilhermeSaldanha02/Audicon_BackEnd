@@ -203,7 +203,10 @@ export class InfractionsController {
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
   @UseGuards(InfractionAccessGuard)
   @Post(':id/send-whatsapp')
-  sendWhatsapp(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
+  sendWhatsapp(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
     return this.infractionsService.sendWhatsapp(id, actor);
   }
 
