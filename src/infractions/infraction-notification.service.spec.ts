@@ -239,7 +239,9 @@ describe('InfractionNotificationService', () => {
 
     it('propaga NotFound quando infração não existe', async () => {
       (repo.findOne as jest.Mock).mockResolvedValue(null);
-      await expect(service.sendWhatsapp(999)).rejects.toThrow(NotFoundException);
+      await expect(service.sendWhatsapp(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

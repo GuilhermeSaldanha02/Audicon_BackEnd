@@ -3,7 +3,6 @@ import { InfractionAnalysisService } from './infraction-analysis.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Infraction, InfractionStatus } from './entities/infraction.entity';
 import { IaService } from '../ia/ia.service';
-import { NotFoundException } from '@nestjs/common';
 
 describe('InfractionAnalysisService', () => {
   let service: InfractionAnalysisService;
