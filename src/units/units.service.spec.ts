@@ -3,11 +3,7 @@ import { UnitsService } from './units.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Unit } from './entities/unit.entity';
 import { CondominiumsService } from '../condominiums/condominiums.service';
-import {
-  ConflictException,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 describe('UnitsService', () => {
   let service: UnitsService;
@@ -103,16 +99,15 @@ describe('UnitsService', () => {
       );
       expect(repository.save).not.toHaveBeenCalled();
     });
-    it('deve lançar InternalServerErrorException para erros genéricos do save', async () => {
+    it('deve relançar erros genéricos sem transformação', async () => {
       const condoId = 10;
       const condo = { id: condoId } as any;
       const dto: any = { identifier: 'A-101' };
+      const genericError = new Error('unexpected');
       condominiumsService.findOne.mockResolvedValue(condo);
       repository.create.mockReturnValue({ ...dto, condominium: condo });
-      repository.save.mockRejectedValue(new Error('unexpected'));
-      await expect(service.create(condoId, dto)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      repository.save.mockRejectedValue(genericError);
+      await expect(service.create(condoId, dto)).rejects.toThrow(genericError);
     });
   });
   describe('findAll', () => {

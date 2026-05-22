@@ -11,7 +11,8 @@ import { AuditService, Actor } from '../audit/audit.service';
 import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { UserRole } from '../common/enums/user-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { throwOnUniqueViolation } from '../common/helpers/unique-violation.helper';
 import * as crypto from 'crypto';
 import { Company } from './entities/company.entity';
 import { User } from '../users/entities/user.entity';
@@ -85,12 +86,7 @@ export class CompaniesService {
         },
       };
     } catch (err) {
-      if (
-        err instanceof QueryFailedError &&
-        (err as any)?.driverError?.code === '23505'
-      ) {
-        throw new ConflictException('CNPJ ou e-mail do admin já cadastrados.');
-      }
+      throwOnUniqueViolation(err, 'CNPJ ou e-mail do admin já cadastrados.');
       throw new InternalServerErrorException('Falha ao criar empresa.');
     }
   }
@@ -244,12 +240,7 @@ export class CompaniesService {
     try {
       return await this.companiesRepository.save(company);
     } catch (err) {
-      if (
-        err instanceof QueryFailedError &&
-        (err as any)?.driverError?.code === '23505'
-      ) {
-        throw new ConflictException('CNPJ já cadastrado.');
-      }
+      throwOnUniqueViolation(err, 'CNPJ já cadastrado.');
       throw err;
     }
   }

@@ -1,12 +1,12 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { throwOnUniqueViolation } from '../common/helpers/unique-violation.helper';
 import { Condominium } from './entities/condominium.entity';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
@@ -46,14 +46,11 @@ export class CondominiumsService {
       }
       return saved;
     } catch (error) {
-      if (
-        error instanceof QueryFailedError &&
-        (error as any)?.driverError?.code === '23505'
-      ) {
-        throw new ConflictException(
-          'A condominium with this CNPJ already exists.',
-        );
-      }
+      throwOnUniqueViolation(
+        error,
+        'A condominium with this CNPJ already exists.',
+      );
+      /* throwOnUniqueViolation always throws; line below satisfies TS */
       throw new InternalServerErrorException('Failed to create condominium.');
     }
   }

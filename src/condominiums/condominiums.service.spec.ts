@@ -7,7 +7,6 @@ import { UsersService } from '../users/users.service';
 import {
   BadRequestException,
   ConflictException,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
@@ -123,17 +122,16 @@ describe('CondominiumsService', () => {
       );
     });
 
-    it('deve lançar InternalServerErrorException para erros genéricos', async () => {
+    it('deve relançar erros genéricos sem transformação', async () => {
       const dto: any = {
         name: 'Condo B',
         cnpj: '11.111.111/1111-11',
         companyId: 1,
       };
       condoRepo.create.mockReturnValue(dto);
-      condoRepo.save.mockRejectedValue(new Error('unexpected'));
-      await expect(service.create(dto)).rejects.toBeInstanceOf(
-        InternalServerErrorException,
-      );
+      const genericError = new Error('unexpected');
+      condoRepo.save.mockRejectedValue(genericError);
+      await expect(service.create(dto)).rejects.toThrow(genericError);
     });
   });
 
