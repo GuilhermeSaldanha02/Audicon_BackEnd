@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InfractionsController } from './infractions.controller';
 import { InfractionsService } from './infractions.service';
 import { InfractionAccessGuard } from '../common/guards/infraction-access.guard';
+import { Actor } from '../audit/audit.service';
+
 describe('InfractionsController', () => {
   let controller: InfractionsController;
   let service: {
@@ -15,6 +17,7 @@ describe('InfractionsController', () => {
     generateDocument: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
+    exportCsv: jest.Mock;
   };
   beforeEach(async () => {
     service = {
@@ -28,6 +31,7 @@ describe('InfractionsController', () => {
       generateDocument: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      exportCsv: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InfractionsController],
@@ -46,13 +50,16 @@ describe('InfractionsController', () => {
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
-  const mockReq: any = {
-    user: { id: 1, email: 'u@x.com', companyId: 1, isMaster: false },
+  const mockActor: Actor = {
+    userId: 1,
+    email: 'u@x.com',
+    companyId: 1,
+    isMaster: false,
   };
   it('create chama service.create com dto + companyId + isMaster + actor', async () => {
     const dto: any = { description: 'Teste', unitId: 10 };
     service.create.mockResolvedValue({ id: 1, ...dto });
-    const result = await controller.create(mockReq, dto);
+    const result = await controller.create(mockActor, dto);
     expect(service.create).toHaveBeenCalledWith(
       dto,
       1,
@@ -65,7 +72,7 @@ describe('InfractionsController', () => {
     const query: any = { page: 1, limit: 20 };
     const paginated = { data: [{ id: 1 }], total: 1, page: 1, limit: 20 };
     service.findAll.mockResolvedValue(paginated);
-    const result = await controller.findAll(mockReq, query);
+    const result = await controller.findAll(mockActor, query);
     expect(service.findAll).toHaveBeenCalledWith(
       { page: 1, limit: 20 },
       undefined,
@@ -78,7 +85,7 @@ describe('InfractionsController', () => {
     const query: any = { page: 1, limit: 20, unitId: 10 };
     const paginated = { data: [{ id: 2 }], total: 1, page: 1, limit: 20 };
     service.findAll.mockResolvedValue(paginated);
-    const result = await controller.findAll(mockReq, query);
+    const result = await controller.findAll(mockActor, query);
     expect(service.findAll).toHaveBeenCalledWith(
       { page: 1, limit: 20 },
       10,
@@ -86,6 +93,23 @@ describe('InfractionsController', () => {
       false,
     );
     expect(result).toEqual(paginated);
+  });
+  it('exportCsv escreve headers e finaliza response com CSV', async () => {
+    const csv = 'id,description\n1,Teste';
+    service.exportCsv = jest.fn().mockResolvedValue(csv);
+    const res: any = { set: jest.fn(), end: jest.fn() };
+    const query: any = {};
+    await controller.exportCsv(mockActor, query, res);
+    expect(service.exportCsv).toHaveBeenCalledWith(
+      query,
+      mockActor.companyId,
+      mockActor.isMaster,
+    );
+    expect(res.set).toHaveBeenCalledWith({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename=infractions.csv',
+    });
+    expect(res.end).toHaveBeenCalledWith(csv);
   });
   it('findOne chama service.findOne', async () => {
     service.findOne.mockResolvedValue({ id: 3 });
@@ -114,7 +138,7 @@ describe('InfractionsController', () => {
   });
   it('approve chama service.approve com id e dto vazio', async () => {
     service.approve.mockResolvedValue({ id: 8, status: 'approved' });
-    const result = await controller.approve(mockReq, 8, {});
+    const result = await controller.approve(mockActor, 8, {});
     expect(service.approve).toHaveBeenCalledWith(8, {}, expect.any(Object));
     expect(result).toEqual({ id: 8, status: 'approved' });
   });
@@ -124,7 +148,7 @@ describe('InfractionsController', () => {
       suggestedPenalty: 'Multa',
     };
     service.approve.mockResolvedValue({ id: 9, status: 'approved', ...dto });
-    const result = await controller.approve(mockReq, 9, dto);
+    const result = await controller.approve(mockActor, 9, dto);
     expect(service.approve).toHaveBeenCalledWith(9, dto, expect.any(Object));
     expect(result.status).toBe('approved');
   });
@@ -133,13 +157,13 @@ describe('InfractionsController', () => {
       id: 11,
       whatsappSentAt: new Date(),
     });
-    const result = await controller.sendWhatsapp(mockReq, 11);
+    const result = await controller.sendWhatsapp(mockActor, 11);
     expect(service.sendWhatsapp).toHaveBeenCalledWith(11, expect.any(Object));
     expect(result.id).toBe(11);
   });
   it('send chama service.send com id', async () => {
     service.send.mockResolvedValue({ id: 10, status: 'sent' });
-    const result = await controller.send(mockReq, 10);
+    const result = await controller.send(mockActor, 10);
     expect(service.send).toHaveBeenCalledWith(10, expect.any(Object));
     expect(result).toEqual({ id: 10, status: 'sent' });
   });
@@ -152,7 +176,7 @@ describe('InfractionsController', () => {
   });
   it('remove chama service.remove com id', async () => {
     service.remove.mockResolvedValue(undefined);
-    const result = await controller.remove(mockReq, 7);
+    const result = await controller.remove(mockActor, 7);
     expect(service.remove).toHaveBeenCalledWith(7, expect.any(Object));
     expect(result).toBeUndefined();
   });

@@ -8,20 +8,11 @@ import {
   Param,
   ParseIntPipe,
   Post,
-  Request,
   UseGuards,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
-
-function masterActor(req: any): Actor {
-  return {
-    userId: req.user.id,
-    email: req.user.email,
-    isMaster: !!req.user.isMaster,
-    companyId: req.user.companyId ?? null,
-  };
-}
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -57,13 +48,7 @@ export class CompaniesController {
   })
   @ApiResponse({ status: 409, description: 'CNPJ ou e-mail já cadastrados' })
   @Post()
-  create(@Request() req: any, @Body() dto: CreateCompanyDto) {
-    const actor: Actor = {
-      userId: req.user.id,
-      email: req.user.email,
-      isMaster: !!req.user.isMaster,
-      companyId: req.user.companyId ?? null,
-    };
+  create(@CurrentActor() actor: Actor, @Body() dto: CreateCompanyDto) {
     return this.companiesService.create(dto, actor);
   }
 
@@ -126,8 +111,8 @@ export class CompaniesController {
   })
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.companiesService.remove(id, masterActor(req));
+  remove(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
+    return this.companiesService.remove(id, actor);
   }
 
   @ApiOperation({
@@ -139,15 +124,11 @@ export class CompaniesController {
   @ApiResponse({ status: 409, description: 'E-mail já cadastrado' })
   @Post(':companyId/users')
   createUser(
-    @Request() req: any,
+    @CurrentActor() actor: Actor,
     @Param('companyId', ParseIntPipe) companyId: number,
     @Body() dto: CreateEmployeeDto,
   ) {
-    return this.companiesService.createEmployee(
-      companyId,
-      dto,
-      masterActor(req),
-    );
+    return this.companiesService.createEmployee(companyId, dto, actor);
   }
 
   @ApiOperation({
@@ -162,16 +143,16 @@ export class CompaniesController {
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @Post(':companyId/users/:userId/reset-password')
   resetUserPassword(
-    @Request() req: any,
+    @CurrentActor() actor: Actor,
     @Param('companyId', ParseIntPipe) companyId: number,
     @Param('userId', ParseIntPipe) userId: number,
   ) {
     return this.companiesService.resetPassword({
       companyId,
       targetUserId: userId,
-      requesterId: req.user.id,
+      requesterId: actor.userId,
       enforceNotAdmin: false,
-      actor: masterActor(req),
+      actor,
     });
   }
 }

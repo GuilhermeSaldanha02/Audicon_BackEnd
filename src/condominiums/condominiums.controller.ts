@@ -8,7 +8,6 @@ import {
   Delete,
   UseGuards,
   ParseIntPipe,
-  Request,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -36,16 +35,8 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
-
-function toActor(req: any): Actor {
-  return {
-    userId: req.user.id,
-    email: req.user.email,
-    isMaster: !!req.user.isMaster,
-    companyId: req.user.companyId ?? null,
-  };
-}
 
 @ApiTags('Condominiums')
 @ApiBearerAuth()
@@ -63,10 +54,10 @@ export class CondominiumsController {
   @UseGuards(MasterGuard)
   @Post()
   create(
-    @Request() req: any,
+    @CurrentActor() actor: Actor,
     @Body() createCondominiumDto: CreateCondominiumDto,
   ) {
-    return this.condominiumsService.create(createCondominiumDto, toActor(req));
+    return this.condominiumsService.create(createCondominiumDto, actor);
   }
 
   @ApiOperation({ summary: 'Listar condomínios do usuário autenticado' })
@@ -75,11 +66,11 @@ export class CondominiumsController {
     description: 'Lista paginada de condomínios do usuário',
   })
   @Get()
-  findAll(@Request() req: any, @Query() pagination: PaginationDto) {
+  findAll(@CurrentActor() actor: Actor, @Query() pagination: PaginationDto) {
     return this.condominiumsService.findAll(
-      req.user.id,
+      actor.userId,
       pagination,
-      req.user.companyId,
+      actor.companyId,
     );
   }
 
@@ -115,8 +106,8 @@ export class CondominiumsController {
   @ApiResponse({ status: 403, description: 'Apenas master pode remover' })
   @UseGuards(MasterGuard)
   @Delete(':id')
-  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.condominiumsService.remove(id, toActor(req));
+  remove(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
+    return this.condominiumsService.remove(id, actor);
   }
 
   @ApiOperation({ summary: 'Adicionar membro ao condomínio (requer ADMIN)' })

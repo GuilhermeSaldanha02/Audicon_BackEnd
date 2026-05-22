@@ -3,9 +3,13 @@ import { CondominiumsController } from './condominiums.controller';
 import { CondominiumsService } from './condominiums.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { MasterGuard } from '../common/guards/master.guard';
+import { Actor } from '../audit/audit.service';
 
-const mockReq = {
-  user: { id: 42, email: 'admin@x.com', companyId: 1, isMaster: false },
+const mockActor: Actor = {
+  userId: 42,
+  email: 'admin@x.com',
+  companyId: 1,
+  isMaster: false,
 };
 
 describe('CondominiumsController', () => {
@@ -55,7 +59,7 @@ describe('CondominiumsController', () => {
     };
     const created = { id: 1, ...dto } as any;
     service.create.mockResolvedValue(created);
-    const result = await controller.create(mockReq, dto);
+    const result = await controller.create(mockActor, dto);
     expect(result).toEqual(created);
     expect(service.create).toHaveBeenCalledWith(dto, expect.any(Object));
   });
@@ -69,12 +73,12 @@ describe('CondominiumsController', () => {
       limit: 20,
     } as any;
     service.findAll.mockResolvedValue(paginated);
-    const result = await controller.findAll(mockReq, pagination);
+    const result = await controller.findAll(mockActor, pagination);
     expect(result).toEqual(paginated);
     expect(service.findAll).toHaveBeenCalledWith(
-      mockReq.user.id,
+      mockActor.userId,
       pagination,
-      mockReq.user.companyId,
+      mockActor.companyId,
     );
   });
 
@@ -99,7 +103,7 @@ describe('CondominiumsController', () => {
   it('remove deve delegar para o service e retornar undefined', async () => {
     const id = 7;
     service.remove.mockResolvedValue(undefined as any);
-    const result = await controller.remove(mockReq, id);
+    const result = await controller.remove(mockActor, id);
     expect(result).toBeUndefined();
     expect(service.remove).toHaveBeenCalledWith(id, expect.any(Object));
   });

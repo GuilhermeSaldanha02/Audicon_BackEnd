@@ -6,7 +6,6 @@ import {
   Param,
   Patch,
   Post,
-  Request,
   UseGuards,
   ParseIntPipe,
   Res,
@@ -29,16 +28,8 @@ import { UpdateInfractionDto } from './dto/update-infraction.dto';
 import { ApproveInfractionDto } from './dto/approve-infraction.dto';
 import { InfractionQueryDto } from './dto/infraction-query.dto';
 import { CsvExportQueryDto } from './dto/csv-export-query.dto';
+import { CurrentActor } from 'src/common/decorators/current-actor.decorator';
 import { Actor } from 'src/audit/audit.service';
-
-function toActor(req: any): Actor {
-  return {
-    userId: req.user.id,
-    email: req.user.email,
-    isMaster: !!req.user.isMaster,
-    companyId: req.user.companyId ?? null,
-  };
-}
 
 @ApiTags('Infractions')
 @ApiBearerAuth()
@@ -53,25 +44,25 @@ export class InfractionsController {
     description: 'Infração criada com status pending',
   })
   @Post()
-  create(@Request() req: any, @Body() dto: CreateInfractionDto) {
+  create(@CurrentActor() actor: Actor, @Body() dto: CreateInfractionDto) {
     return this.infractionsService.create(
       dto,
-      req.user.companyId,
-      !!req.user.isMaster,
-      toActor(req),
+      actor.companyId,
+      actor.isMaster,
+      actor,
     );
   }
 
   @ApiOperation({ summary: 'Listar infrações (filtrar por unidade, paginado)' })
   @ApiResponse({ status: 200, description: 'Lista paginada de infrações' })
   @Get()
-  findAll(@Request() req: any, @Query() query: InfractionQueryDto) {
+  findAll(@CurrentActor() actor: Actor, @Query() query: InfractionQueryDto) {
     const { unitId, ...pagination } = query;
     return this.infractionsService.findAll(
       pagination,
       unitId,
-      req.user.companyId,
-      !!req.user.isMaster,
+      actor.companyId,
+      actor.isMaster,
     );
   }
 
@@ -83,14 +74,14 @@ export class InfractionsController {
   })
   @Get('export')
   async exportCsv(
-    @Request() req: any,
+    @CurrentActor() actor: Actor,
     @Query() query: CsvExportQueryDto,
     @Res() res: Response,
   ) {
     const csv = await this.infractionsService.exportCsv(
       query,
-      req.user.companyId,
-      !!req.user.isMaster,
+      actor.companyId,
+      actor.isMaster,
     );
     res.set({
       'Content-Type': 'text/csv; charset=utf-8',
@@ -168,11 +159,11 @@ export class InfractionsController {
   @UseGuards(InfractionAccessGuard)
   @Patch(':id/approve')
   approve(
-    @Request() req: any,
+    @CurrentActor() actor: Actor,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ApproveInfractionDto,
   ) {
-    return this.infractionsService.approve(id, dto, toActor(req));
+    return this.infractionsService.approve(id, dto, actor);
   }
 
   @ApiOperation({
@@ -192,8 +183,8 @@ export class InfractionsController {
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
   @UseGuards(InfractionAccessGuard)
   @Post(':id/send')
-  send(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.send(id, toActor(req));
+  send(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.send(id, actor);
   }
 
   @ApiOperation({
@@ -212,8 +203,11 @@ export class InfractionsController {
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
   @UseGuards(InfractionAccessGuard)
   @Post(':id/send-whatsapp')
-  sendWhatsapp(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.sendWhatsapp(id, toActor(req));
+  sendWhatsapp(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.infractionsService.sendWhatsapp(id, actor);
   }
 
   @ApiOperation({ summary: 'Atualizar infração' })
@@ -233,7 +227,7 @@ export class InfractionsController {
   @ApiResponse({ status: 200, description: 'Infração removida' })
   @UseGuards(InfractionAccessGuard)
   @Delete(':id')
-  remove(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.infractionsService.remove(id, toActor(req));
+  remove(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
+    return this.infractionsService.remove(id, actor);
   }
 }
