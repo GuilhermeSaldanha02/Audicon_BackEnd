@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InfractionsController } from './infractions.controller';
 import { InfractionsService } from './infractions.service';
+import { InfractionAnalysisService } from './infraction-analysis.service';
+import { InfractionNotificationService } from './infraction-notification.service';
 import { InfractionAccessGuard } from '../common/guards/infraction-access.guard';
 import { Actor } from '../audit/audit.service';
 
@@ -10,28 +12,36 @@ describe('InfractionsController', () => {
     create: jest.Mock;
     findAll: jest.Mock;
     findOne: jest.Mock;
-    analyze: jest.Mock;
     approve: jest.Mock;
-    send: jest.Mock;
-    sendWhatsapp: jest.Mock;
-    generateDocument: jest.Mock;
     update: jest.Mock;
     remove: jest.Mock;
     exportCsv: jest.Mock;
+  };
+  let analysisService: {
+    analyze: jest.Mock;
+  };
+  let notificationService: {
+    send: jest.Mock;
+    sendWhatsapp: jest.Mock;
+    generateDocument: jest.Mock;
   };
   beforeEach(async () => {
     service = {
       create: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
-      analyze: jest.fn(),
       approve: jest.fn(),
-      send: jest.fn(),
-      sendWhatsapp: jest.fn(),
-      generateDocument: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
       exportCsv: jest.fn(),
+    };
+    analysisService = {
+      analyze: jest.fn(),
+    };
+    notificationService = {
+      send: jest.fn(),
+      sendWhatsapp: jest.fn(),
+      generateDocument: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InfractionsController],
@@ -39,6 +49,14 @@ describe('InfractionsController', () => {
         {
           provide: InfractionsService,
           useValue: service,
+        },
+        {
+          provide: InfractionAnalysisService,
+          useValue: analysisService,
+        },
+        {
+          provide: InfractionNotificationService,
+          useValue: notificationService,
         },
       ],
     })
@@ -117,18 +135,18 @@ describe('InfractionsController', () => {
     expect(service.findOne).toHaveBeenCalledWith(3);
     expect(result).toEqual({ id: 3 });
   });
-  it('analyze chama service.analyze', async () => {
-    service.analyze.mockResolvedValue({ id: 4, status: 'analyzed' });
+  it('analyze chama analysisService.analyze', async () => {
+    analysisService.analyze.mockResolvedValue({ id: 4, status: 'analyzed' });
     const result = await controller.analyze(4);
-    expect(service.analyze).toHaveBeenCalledWith(4);
+    expect(analysisService.analyze).toHaveBeenCalledWith(4);
     expect(result).toEqual({ id: 4, status: 'analyzed' });
   });
   it('generateDocument escreve headers e finaliza response com PDF', async () => {
     const buffer = Buffer.from('pdfdata');
-    service.generateDocument.mockResolvedValue(buffer);
+    notificationService.generateDocument.mockResolvedValue(buffer);
     const res: any = { set: jest.fn(), end: jest.fn() };
     await controller.generateDocument(5, res);
-    expect(service.generateDocument).toHaveBeenCalledWith(5);
+    expect(notificationService.generateDocument).toHaveBeenCalledWith(5);
     expect(res.set).toHaveBeenCalledWith({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename=infraction-5.pdf',
@@ -152,19 +170,25 @@ describe('InfractionsController', () => {
     expect(service.approve).toHaveBeenCalledWith(9, dto, expect.any(Object));
     expect(result.status).toBe('approved');
   });
-  it('sendWhatsapp chama service.sendWhatsapp com id', async () => {
-    service.sendWhatsapp.mockResolvedValue({
+  it('sendWhatsapp chama notificationService.sendWhatsapp com id', async () => {
+    notificationService.sendWhatsapp.mockResolvedValue({
       id: 11,
       whatsappSentAt: new Date(),
     });
     const result = await controller.sendWhatsapp(mockActor, 11);
-    expect(service.sendWhatsapp).toHaveBeenCalledWith(11, expect.any(Object));
+    expect(notificationService.sendWhatsapp).toHaveBeenCalledWith(
+      11,
+      expect.any(Object),
+    );
     expect(result.id).toBe(11);
   });
-  it('send chama service.send com id', async () => {
-    service.send.mockResolvedValue({ id: 10, status: 'sent' });
+  it('send chama notificationService.send com id', async () => {
+    notificationService.send.mockResolvedValue({ id: 10, status: 'sent' });
     const result = await controller.send(mockActor, 10);
-    expect(service.send).toHaveBeenCalledWith(10, expect.any(Object));
+    expect(notificationService.send).toHaveBeenCalledWith(
+      10,
+      expect.any(Object),
+    );
     expect(result).toEqual({ id: 10, status: 'sent' });
   });
   it('update chama service.update com id e dto', async () => {
