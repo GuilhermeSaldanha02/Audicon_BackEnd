@@ -2,6 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
+import { Actor } from '../audit/audit.service';
+
+const mockMasterActor: Actor = {
+  userId: 1,
+  email: 'master@audicon.com',
+  isMaster: true,
+  companyId: null,
+};
 
 describe('CompaniesController', () => {
   let controller: CompaniesController;
@@ -10,6 +18,9 @@ describe('CompaniesController', () => {
     findAll: jest.Mock;
     findOne: jest.Mock;
     listUsersOfCompany: jest.Mock;
+    remove: jest.Mock;
+    createEmployee: jest.Mock;
+    resetPassword: jest.Mock;
   };
   let condominiumsService: { findByCompany: jest.Mock };
 
@@ -19,6 +30,9 @@ describe('CompaniesController', () => {
       findAll: jest.fn(),
       findOne: jest.fn(),
       listUsersOfCompany: jest.fn(),
+      remove: jest.fn(),
+      createEmployee: jest.fn(),
+      resetPassword: jest.fn(),
     };
     condominiumsService = { findByCompany: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
@@ -37,21 +51,54 @@ describe('CompaniesController', () => {
       cnpj: '00.000.000/0001-99',
       admin: { nome: 'A', email: 'a@x.com' },
     };
-    const req: any = {
-      user: {
-        id: 1,
-        email: 'master@audicon.com',
-        isMaster: true,
-        companyId: null,
-      },
-    };
     service.create.mockResolvedValue({ company: { id: 1 }, admin: {} });
-    const result = await controller.create(req, dto);
+    const result = await controller.create(mockMasterActor, dto);
     expect(service.create).toHaveBeenCalledWith(
       dto,
       expect.objectContaining({ isMaster: true }),
     );
     expect(result.company.id).toBe(1);
+  });
+
+  it('remove delega ao service com id e actor', async () => {
+    service.remove.mockResolvedValue({ id: 2, name: 'Empresa X' });
+    const result = await controller.remove(mockMasterActor, 2);
+    expect(service.remove).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ isMaster: true }),
+    );
+    expect(result.id).toBe(2);
+  });
+
+  it('createUser delega ao service com companyId, dto e actor', async () => {
+    const dto: any = { nome: 'Func', email: 'f@x.com', role: 'EMPLOYEE' };
+    service.createEmployee.mockResolvedValue({ id: 10, ...dto });
+    const result = await controller.createUser(mockMasterActor, 5, dto);
+    expect(service.createEmployee).toHaveBeenCalledWith(
+      5,
+      dto,
+      expect.objectContaining({ isMaster: true }),
+    );
+    expect(result.id).toBe(10);
+  });
+
+  it('resetUserPassword delega ao service com actor.userId como requesterId', async () => {
+    service.resetPassword.mockResolvedValue({
+      id: 20,
+      email: 'f@x.com',
+      tempPassword: 'abc123',
+    });
+    const result = await controller.resetUserPassword(mockMasterActor, 5, 20);
+    expect(service.resetPassword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 5,
+        targetUserId: 20,
+        requesterId: mockMasterActor.userId,
+        enforceNotAdmin: false,
+        actor: expect.objectContaining({ isMaster: true }),
+      }),
+    );
+    expect(result.tempPassword).toBe('abc123');
   });
 
   it('findAll delega ao service', async () => {
