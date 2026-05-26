@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { MasterGuard } from '../common/guards/master.guard';
 describe('UsersController', () => {
   let controller: UsersController;
   let service: jest.Mocked<UsersService>;
@@ -39,5 +41,15 @@ describe('UsersController', () => {
     expect(result).toEqual({ id: 1, nome: 'John', email: 'john@example.com' });
     expect((result as any).senha).toBeUndefined();
     expect(service.create).toHaveBeenCalledWith(dto);
+  });
+
+  // Complemento ao e2e (test/users.e2e-spec.ts): garante que os guards
+  // estão DECLARADOS na rota. O e2e prova o bloqueio de comportamento;
+  // este teste evita regressão de alguém remover o @UseGuards.
+  it('POST /users declara JwtAuthGuard + MasterGuard', () => {
+    const guards =
+      Reflect.getMetadata('__guards__', UsersController.prototype.create) ?? [];
+    expect(guards).toContain(JwtAuthGuard);
+    expect(guards).toContain(MasterGuard);
   });
 });
