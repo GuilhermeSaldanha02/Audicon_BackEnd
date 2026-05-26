@@ -1,326 +1,313 @@
-# State of Code — Audicon API
+# State of Code — Audicon API (Backend)
 
-> **Tarefa:** T-00 (Discovery) · §5 do [SDD](./SDD-audicon.md)
-> **Branch:** `discovery/state-of-code`
-> **Commit base:** `261554c` (master)
-> **Data:** 2026-05-15
-> **Versão do SDD lida:** 1.0 (2026-05-15)
+> **Tarefa:** T-00 (Discovery) · §5 do [SDD v2.0](./SDD-audicon.md)
+> **Branch de entrega:** `discovery/state-of-code`
+> **Base inventariada:** `master` (commit `4208622`, 2026-05-22) — código real em produção/integração
+> **Data:** 2026-05-26
+> **Versão do SDD lida:** 2.0 (multi-tenant)
 > **Escopo:** somente leitura e documentação. Nenhum arquivo em `src/` ou `test/` foi modificado nesta tarefa.
+>
+> ⚠️ **Substitui** a versão de 2026-05-15 (preservada em [`state-of-code-2026-05-15.md`](./state-of-code-2026-05-15.md)). Aquela descrevia um código pré-multi-tenant (4 entidades, SDD v1.0) que **já foi superado**. Este documento reflete o `master` atual.
 
 ---
 
 ## 1. Resumo executivo
 
-A API está mais madura do que o SDD §3.2 sugeria: existem **4 entidades** (`User`, `Condominium`, `Unit`, `Infraction`), **CRUD completo** para condomínios/unidades/infrações, **fluxo de IA** já chamando o Gemini real (com fallback mock), **geração de PDF** funcional via `pdfkit`, **JWT + Passport** (local e jwt) e os três padrões transversais que o SDD exige (`ValidationPipe` global, `HttpExceptionFilter`, `ResponseInterceptor`). A migration inicial está consistente com as entidades. A cobertura unitária é alta em controllers/services (>91% statements no total), com **gap notório no `IaService` (~62%)** por causa dos caminhos de erro/produção.
+**O código está MUITO à frente do SDD v2.0.** O SDD v2.0 foi escrito como um plano de execução em fases (Fase 0 → 6) supondo uma base pré-multi-tenant. Na realidade, **praticamente todo o plano já foi implementado e mergeado em `master`**: multi-tenancy com `Company`, RBAC, seed do master, isolamento por empresa, Swagger, rate limiting, pino, healthcheck, CI, soft delete, paginação, validação estrita de env — além de **um conjunto grande de features que o SDD v2.0 nem menciona** (e-mail/Resend, WhatsApp/Z-API, audit log, dashboard, imagens de infração, regimento PDF + leitura por IA, reincidência, aprovação/envio, CSV, histórico de notificações com webhook).
 
-Lacunas estruturais relevantes:
+Das ~30 tarefas do plano (T-00…T-29), as de backend estão majoritariamente **entregues**. O que resta é, em larga medida, **frontend, deploy (T-19) e configurações externas** (verificar domínio Resend, conta Z-API real), além de 3 branches de refactor ainda não mergeadas.
 
-1. **`User` não tem relacionamento com `Condominium`** no código atual — confirma a dúvida do SDD §3.2 sobre cardinalidade.
-2. **Sem `.env.example`**, sem validação de schema do `.env`, com **fallbacks hard-coded** em `data-source.ts` e CORS hard-coded em `main.ts` (alvos de T-01/T-02/T-03).
-3. **Lint quebrado**: `eslint` reporta **2.294 erros**, todos `prettier/prettier` (line endings CRLF + indentação). Provavelmente CRLF do Windows vs. Prettier sem `endOfLine: 'auto'`.
-4. **`scripts/e2e-runner.mjs` está desatualizado**: usa rotas em português (`/condominios`, `/unidades`, `/infracoes`) que **não existem** mais — controllers atuais expõem rotas em inglês.
-5. **`InfractionsController.generateDocument` usa `@Res()` cru** (passa por fora do `ResponseInterceptor`). Para o caso PDF isso é legítimo, mas precisa de registro porque o SDD §4 (C2) só admite com justificativa.
+**Modelo de RBAC implementado diverge do SDD** (ver §7): o código usa papéis **por condomínio** (`ADMIN | MANAGER | RESIDENT` na tabela `user_condominium`) + flag `isMaster` no `User`, enquanto o SDD v2.0 especifica papéis **por empresa** (`MASTER | GERENTE | FUNCIONARIO`). Há inclusive um papel `RESIDENT`, que o SDD declara explicitamente não existir.
 
-Próxima ação recomendada: aprovar este relatório → T-01 (CORS via `ConfigService`) e T-02 (eliminar fallbacks de `data-source.ts`) em paralelo, e abrir tarefa específica para normalizar EOL/prettier antes que vire ruído permanente no CI.
-
----
-
-## 2. Inventário por módulo
-
-> Convenção: `✓` = implementado · `⚠` = parcial / dúbio · `✗` = ausente.
-
-### 2.1 `AuthModule` ([src/auth](../src/auth/))
-
-| Item | Detalhe |
-|---|---|
-| Entidade | — (não tem entidade própria; consome `User`) |
-| Controller | [auth.controller.ts](../src/auth/auth.controller.ts) |
-| Endpoints | `POST /auth/login` (LocalAuthGuard, `HttpCode 200`) ✓ · `GET /auth/profile` (JwtAuthGuard) ✓ |
-| DTO entrada | **✗ Sem DTO formal de login.** `LocalStrategy` aceita `email` + (`password` ou `senha`) lendo do `req.body` cru. Viola §4 C1. |
-| Service | [auth.service.ts](../src/auth/auth.service.ts) — `validateUser(email, pass)`, `login(user)` ✓ |
-| Strategies | [LocalStrategy](../src/auth/strategies/local.strategy.ts) (`passReqToCallback: true`, aceita `password` ou `senha`) ✓ · [JwtStrategy](../src/auth/strategies/jwt.strategy.ts) (lê `JWT_SECRET`, valida `sub` recarregando user) ✓ |
-| Guards | `JwtAuthGuard`, `LocalAuthGuard` (extends `AuthGuard`) ✓ |
-| Specs | `auth.controller.spec.ts`, `auth.service.spec.ts` ✓ |
-| Vars env | `JWT_SECRET`, `JWT_EXPIRATION` |
-| Observação | `auth.controller.ts` retorna `req.user` cru em `/profile` — passa pelo interceptor (ok). Login devolve `{ access_token }`, sem expiração explícita no payload de resposta. |
-
-### 2.2 `UsersModule` ([src/users](../src/users/))
-
-| Item | Detalhe |
-|---|---|
-| Entidade | [user.entity.ts](../src/users/entities/user.entity.ts): `id` (PK), `nome`, `email` (unique), `senha`. Hook `@BeforeInsert` faz `bcrypt.hash(senha, 10)`. **Sem timestamps. Sem campos de papel/role. Sem relação com `Condominium`.** |
-| Controller | [users.controller.ts](../src/users/users.controller.ts) — apenas `POST /users` (sem guard, público) ✓ |
-| Endpoints | `POST /users` (cria, retorna sem `senha`) ✓ · `GET/PATCH/DELETE` **✗ ausentes** |
-| DTO | `CreateUserDto` com `nome`, `email`, `senha` (min 6) ✓ · `UpdateUserDto` **✗ ausente** |
-| Service | `create`, `findOneByEmail`, `findOneById` ✓ |
-| Specs | `users.controller.spec.ts`, `users.service.spec.ts` ✓ |
-| Observação | Hashing ocorre via `@BeforeInsert`. Se algum dia for usado `repo.update(...)`, a senha **não** será re-hasheada (TypeORM `update` não dispara subscribers). Risco latente. |
-
-### 2.3 `CondominiumsModule` ([src/condominiums](../src/condominiums/))
-
-| Item | Detalhe |
-|---|---|
-| Entidade | [condominium.entity.ts](../src/condominiums/entities/condominium.entity.ts): `id`, `name`, `cnpj` (unique), `address`, `units: Unit[]` (OneToMany) ✓ |
-| Controller | [condominiums.controller.ts](../src/condominiums/condominiums.controller.ts) — `@UseGuards(JwtAuthGuard)` no nível da classe ✓ |
-| Endpoints | `POST/GET/GET :id/PATCH :id/DELETE :id` em `/condominiums` ✓ |
-| DTOs | `CreateCondominiumDto` (name/cnpj/address) ✓ · `UpdateCondominiumDto = PartialType` ✓ |
-| Service | CRUD completo. Trata `QueryFailedError 23505` (CNPJ duplicado) → `ConflictException`. `findOne` lança `NotFoundException`. ✓ |
-| Specs | `condominiums.controller.spec.ts`, `condominiums.service.spec.ts` ✓ |
-
-### 2.4 `UnitsModule` ([src/units](../src/units/))
-
-| Item | Detalhe |
-|---|---|
-| Entidade | [unit.entity.ts](../src/units/entities/unit.entity.ts): `id`, `identifier`, `ownerName`, `condominium` (ManyToOne), `infractions` (OneToMany) ✓. **Sem unique constraint em `identifier`** apesar do `ConflictException` mencionar duplicidade. |
-| Controller | [units.controller.ts](../src/units/units.controller.ts) — rota aninhada `/condominiums/:condominiumId/units`, `JwtAuthGuard` ✓ |
-| Endpoints | `POST /condominiums/:condominiumId/units` ✓ · `GET /condominiums/:condominiumId/units` ✓ · `GET /condominiums/:condominiumId/units/:id` ✓ · `PATCH ../units/:id` ✓ · `DELETE ../units/:id` ✓ |
-| DTOs | `CreateUnitDto` (identifier, ownerName) ✓ · `UpdateUnitDto = PartialType` ✓ |
-| Service | Valida existência do condomínio antes do create. Mesmo padrão de `QueryFailedError 23505 → ConflictException` (mas, como dito, **não há índice unique**, então esse catch nunca dispara). |
-| Specs | `units.controller.spec.ts`, `units.service.spec.ts` ✓ |
-| Observação | `findOne(id)` em `Patch/Delete` **não filtra por `condominiumId`** — atualizar/deletar uma unidade de outro condomínio funciona se o ID for adivinhado. |
-
-### 2.5 `InfractionsModule` ([src/infractions](../src/infractions/))
-
-| Item | Detalhe |
-|---|---|
-| Entidade | [infraction.entity.ts](../src/infractions/entities/infraction.entity.ts): `id`, `description`, `formalDescription?`, `suggestedPenalty?`, `status` (enum `pending/analyzed/approved/sent`, default `pending`), `occurrenceDate` (`@CreateDateColumn`), `updatedAt` (`@UpdateDateColumn`), `unit` (ManyToOne). Comentários SQL anotados nas colunas. |
-| Controller | [infractions.controller.ts](../src/infractions/infractions.controller.ts), `JwtAuthGuard` ✓ |
-| Endpoints | `POST /infractions` ✓ · `GET /infractions?unitId=` ✓ · `GET /infractions/:id` ✓ · `POST /infractions/:id/analyze` ✓ · `GET /infractions/:id/document` (**PDF, usa `@Res()` cru**) ⚠ · `PATCH /infractions/:id` ✓ · `DELETE /infractions/:id` ✓ |
-| DTOs | `CreateInfractionDto` (description, unitId) ✓ · `UpdateInfractionDto = PartialType` ✓ |
-| Service | CRUD + `analyze(id)` (chama `IaService` e popula `formalDescription`/`suggestedPenalty`, muda status para `ANALYZED`) + `generateDocument(id)` (exige `formalDescription` setada, chama `PdfService`). ✓ |
-| Specs | `infractions.controller.spec.ts`, `infractions.service.spec.ts` ✓ |
-| Observação SDD §4 (C2) | `generateDocument` retorna binário via `res.end(buffer)`, fora do `ResponseInterceptor` — **caso legítimo, mas precisa registro**. |
-
-### 2.6 `IaModule` ([src/ia](../src/ia/)) — **detalhado**
-
-| Item | Detalhe |
-|---|---|
-| Service | [ia.service.ts](../src/ia/ia.service.ts) |
-| Funções públicas | `onModuleInit()` (instancia client via `await eval('import("@google/generative-ai")')`) · `analisarInfracao(infraction)` |
-| Funções privadas | `getModel()` · `getFallbackResponse(infraction)` · `construirPrompt(descricao)` |
-| Dependências externas | `@google/generative-ai` (carregado dinamicamente via `eval('import(...)')` para contornar CJS/ESM) |
-| Vars env esperadas | `GEMINI_API_KEY` (obrigatória em produção) · `GEMINI_API_ENDPOINT` (default `https://generativelanguage.googleapis.com/v1`) · `GEMINI_MODEL` (default `gemini-1.5-pro`) · `NODE_ENV` |
-| Real x mock | **Chamada real ao Gemini** quando `apiKey` presente. **Fallback mock** (`getFallbackResponse`) em dev/test quando key ausente ou quando JSON do Gemini falha em parse — em produção, fallback **lança** `InternalServerErrorException`. |
-| Prompt | Construído em string literal dentro do service, em PT-BR. Pede JSON com `descricao_formal` e `penalidade_sugerida`. **Não está versionado em arquivo** (T-04 do SDD prevê externalizar). |
-| Cobertura | **62.31% statements · 46.34% branches** — gaps nos ramos de erro/produção (ver §8). |
-| Pontos de atenção | Uso de `eval('import(...)')` é frágil para análise estática. Sem timeout configurável na chamada `model.generateContent`. Logs vazam prefixo da API key (5 caracteres). |
-
-### 2.7 `PdfModule` ([src/pdf](../src/pdf/)) — **detalhado**
-
-| Item | Detalhe |
-|---|---|
-| Service | [pdf.service.ts](../src/pdf/pdf.service.ts) |
-| Funções públicas | `gerarDocumentoInfracao(infraction): Promise<Buffer>` |
-| Dependências externas | `pdfkit` (default import) |
-| Vars env | Nenhuma |
-| Conteúdo PDF | Cabeçalho "Infraction Notice", dados do condomínio (`infraction.unit.condominium.name`), unit identifier, owner, descrição formal, penalidade sugerida, assinatura "Audicon Condominiums Administration". |
-| Tipo de geração | **Buffer em memória** (`Buffer.concat(buffers)`). SDD §5 T-05 pede **streaming** — gap registrado. |
-| Cobertura | 100% lines/statements; 50% branches (dois ramos `||` não exercitados). |
-| Real x mock | Real. |
-
-### 2.8 `common/` ([src/common](../src/common/))
-
-- [HttpExceptionFilter](../src/common/filters/http-exception.filter.ts): global, normaliza shape `{ statusCode, timestamp, path, response }`. ✓
-- [ResponseInterceptor](../src/common/interceptors/response.interceptor.ts): global, envolve resposta em `{ statusCode, data }`. ✓
-
-### 2.9 `AppController` / `AppService`
-
-- `GET /` retorna `{ status: 'online', environment, database: 'connected', timestamp }`. Note: `database` é **string hard-coded `'connected'`**, não há health-check real (gap futuro T-09).
+Maturidade por camada:
+- **Entidades/migrations:** 9 entidades, 13 migrations, todas consistentes; `synchronize: false`. ✓
+- **Segurança transversal:** `ValidationPipe` global (whitelist+forbid), `HttpExceptionFilter`, `ResponseInterceptor`, `ThrottlerGuard` global, validação Joi do `.env`. ✓
+- **Integrações externas:** Gemini, Resend e Z-API com chamada **real** + fallback **mock** em dev/test. ✓
+- **Lacuna de segurança pontual:** `POST /users` é **público e sem guard** (ver §6, R1) — contradiz a hierarquia de criação de usuário do SDD.
 
 ---
 
-## 3. Camada transversal — pontos para T-01..T-03
+## 2. Inventário por módulo — implementado vs. stub
 
-### [src/main.ts](../src/main.ts)
+> Convenção: **✅ Real/completo** · **🟡 Parcial** · **🔩 Esqueleto/stub** · **❌ Ausente**
+> Nenhum módulo está em estado de stub — todos têm lógica real. As ressalvas estão marcadas 🟡.
 
-```ts
-const app = await NestFactory.create(AppModule, {
-  cors: {
-    origin: 'http://localhost:4173', // ← hard-coded · alvo T-01
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-  },
-});
-app.setGlobalPrefix('api/v1');
-app.useGlobalFilters(new HttpExceptionFilter());
-app.useGlobalInterceptors(new ResponseInterceptor());
-app.useGlobalPipes(new ValidationPipe({
-  whitelist: true, forbidNonWhitelisted: true, transform: true,
-}));
-await app.listen(process.env.PORT ?? 3000);
-```
+### 2.1 `AuthModule` — ✅
+- **Controller** [auth.controller.ts](../src/auth/auth.controller.ts): `POST /auth/login` (LocalAuthGuard, HTTP 200), `GET /auth/profile` (JwtAuthGuard, retorna perfil enxuto via `getProfile`), `POST /auth/change-password` (JwtAuthGuard + `ChangePasswordDto`).
+- **Strategies:** `LocalStrategy` (aceita `password` ou `senha`), `JwtStrategy` (recarrega user do banco, remove `senha`).
+- **JWT payload:** `{ email, sub, companyId, isMaster, mustChangePassword }`.
+- 🟡 Login ainda **não tem DTO formal** (lê do `req.body`); documentado via `@ApiBody` no Swagger. Viola C1 em sentido estrito.
+- 🟡 JWT em `Authorization: Bearer` (não cookie httpOnly) — T-07 do SDD **não** implementado.
 
-- Prefixo global `api/v1` ✓
-- `ValidationPipe` global com whitelist+forbid ✓ (§4 C1)
-- CORS hard-coded → **T-01**
-- `PORT` lido direto de `process.env` (sem `ConfigService`) — pequeno desvio do princípio de §4 C5.
+### 2.2 `UsersModule` — 🟡
+- **Entidade** [user.entity.ts](../src/users/entities/user.entity.ts): `id`, `nome`, `email` (unique), `senha`, `isMaster` (bool), `mustChangePassword` (bool), `company`/`companyId` (nullable — master tem nulo), `memberships: UserCondominium[]`. Hash via `@BeforeInsert`.
+- **Service:** `create`, `findOneByEmail`, `findOneById`, `changePassword` (≥8 chars, limpa `mustChangePassword`), `getProfile`.
+- ⚠️ **R1 (segurança):** `POST /users` ([users.controller.ts](../src/users/users.controller.ts)) é **público, sem guard e sem checagem de papel** — qualquer um cria usuário (sem `companyId`, sem `isMaster`). A criação "correta" segue pelo `CompaniesController`. Ver §6.
+- 🟡 Sem `select: false`/`@Exclude()` na coluna `senha` (T-09/C10): a senha **não vaza** porque os fluxos deletam o campo manualmente (`delete result.senha`), mas a proteção não é estrutural.
 
-### [src/data-source.ts](../src/data-source.ts)
+### 2.3 `CompaniesModule` — ✅ (núcleo do multi-tenant)
+- **Entidade** [company.entity.ts](../src/companies/entities/company.entity.ts): `id`, `name`, `cnpj` (unique), `createdAt`, `users[]`, `condominiums[]`.
+- **Controller** [companies.controller.ts](../src/companies/companies.controller.ts) — **todo protegido por `JwtAuthGuard + MasterGuard`**:
+  - `POST /companies` (cria empresa + admin inicial, devolve senha temporária)
+  - `GET /companies`, `GET /companies/:id`
+  - `GET /companies/:companyId/users`, `GET /companies/:companyId/condominiums`
+  - `PATCH /companies/:id`, `DELETE /companies/:id` (bloqueia se houver condomínio ativo; faz limpeza manual em cascata)
+  - `POST /companies/:companyId/users` (cria funcionário), `POST /companies/:companyId/users/:userId/reset-password`
+- **Service:** senha temporária via `crypto.randomBytes` (12 chars), `mustChangePassword: true`, auditoria em criação/remoção/reset.
 
-```ts
-host: process.env.DB_HOST || 'localhost',
-port: +(process.env.DB_PORT || 5432),
-username: process.env.DB_USERNAME || 'postgres',
-password: process.env.DB_PASSWORD || 'postgres',
-database: process.env.DB_DATABASE || 'audicon',
-```
+### 2.4 `CondominiumsModule` — ✅
+- **Entidade** [condominium.entity.ts](../src/condominiums/entities/condominium.entity.ts): `id`, `name`, `cnpj` (unique), `company`/`companyId` (NOT NULL, FK RESTRICT), `address`, `regimentoFilename/Content(bytea, select:false)/UploadedAt`, `units[]`, `memberships[]`, `@DeleteDateColumn`.
+- **Controller** [condominiums.controller.ts](../src/condominiums/condominiums.controller.ts):
+  - `POST /` (MasterGuard), `GET /` (lista do usuário, paginada), `GET /:id` (RolesGuard: ADMIN/MANAGER/RESIDENT), `PATCH /:id` (ADMIN), `DELETE /:id` (MasterGuard)
+  - `POST /:id/members` + `DELETE /:id/members/:userId` (ADMIN; impede remover último ADMIN)
+  - `POST/GET/DELETE /:id/regimento` (upload PDF ≤5MB, ADMIN/MANAGER; download via `@Res()`)
+- Soft delete ✅. Regimento PDF ✅.
 
-Cinco fallbacks → **T-02**. `synchronize: false` ✓.
+### 2.5 `UnitsModule` — ✅
+- **Entidade** [unit.entity.ts](../src/units/entities/unit.entity.ts): `id`, `identifier`, `ownerName`, `residentEmail?`, `residentPhone?`, `condominium` (ManyToOne), `infractions[]`, `@DeleteDateColumn`.
+- Rota aninhada `/condominiums/:condominiumId/units` (CRUD). Contato do morador (email/telefone) na unidade — base do envio de notificações.
 
-### [src/app.module.ts](../src/app.module.ts)
+### 2.6 `InfractionsModule` — ✅ (módulo mais rico; service foi dividido)
+- **Entidade** [infraction.entity.ts](../src/infractions/entities/infraction.entity.ts): `description`, `formalDescription?`, `suggestedPenalty?`, `status` (`pending→analyzed→approved→sent`), `occurrenceDate`, `updatedAt`, `approvedAt?`, `sentAt?`, `whatsappSentAt?`, `unit`, `images[]`, `@DeleteDateColumn`.
+- **Entidade** [infraction-image.entity.ts](../src/infractions/entities/infraction-image.entity.ts): `filename`, `mimetype`, `sizeBytes`, `content (bytea, select:false)`, `uploadedAt`.
+- **Controllers:**
+  - [infractions.controller.ts](../src/infractions/infractions.controller.ts): CRUD + `export` (CSV) + `:id/analyze` (IA, throttle 10/min) + `:id/document` (PDF unitário, `@Res()`) + `:id/approve` + `:id/send` (e-mail) + `:id/send-whatsapp`. Todas as rotas `:id` protegidas por `InfractionAccessGuard`.
+  - [images.controller.ts](../src/infractions/images.controller.ts): upload/list/download/delete de imagens (JPEG/PNG/WebP ≤5MB, até 10).
+  - [reports.controller.ts](../src/infractions/reports.controller.ts): `GET /condominiums/:id/infractions/report.pdf` (relatório **em streaming**, ADMIN/MANAGER).
+- Fluxo de aprovação, envio e reincidência completos.
 
-- `ConfigModule.forRoot({ isGlobal: true })` — **sem `validationSchema`** → T-03.
-- `TypeOrmModule.forRootAsync` lê `DB_*` via `ConfigService` (sem fallbacks aqui — diferente de `data-source.ts`).
-- `autoLoadEntities: true`, `synchronize: false` ✓.
+### 2.7 `IaModule` (Gemini) — ✅ com ressalvas — **detalhado**
+- **Service** [ia.service.ts](../src/ia/ia.service.ts).
+- **Funções públicas:** `onModuleInit` (carrega client via `eval('import("@google/generative-ai")')`), `analisarInfracao(infraction, regimentoText?, reincidencias?)`, `extractRegimentoText(condominiumId)` (via `pdf-parse`).
+- **Prompts versionados em arquivo:** `prompts/analyze-infraction.v1/v2/v3.md` (v1 sem regimento, v2 com regimento, v3 com regimento + reincidência). T-29 do SDD já feito.
+- **Timeout configurável** (`GEMINI_TIMEOUT_MS`, default 15s) via `Promise.race`. Erros tipados (`geminiConfigError/timeoutError/upstreamError`).
+- **Real x mock:** chamada real com `GEMINI_API_KEY`; fallback mock em dev/test; em produção sem key/modelo → **lança** erro (não faz fallback silencioso).
+- 🟡 `eval('import(...)')` permanece (contorna CJS/ESM); frágil para análise estática.
+- **Vars:** `GEMINI_API_KEY` (opcional no schema, obrigatória em prod por código), `GEMINI_API_ENDPOINT`, `GEMINI_MODEL` (default `gemini-1.5-pro`), `GEMINI_TIMEOUT_MS`.
+
+### 2.8 `PdfModule` — ✅ — **detalhado**
+- **Service** [pdf.service.ts](../src/pdf/pdf.service.ts): `gerarDocumentoInfracao` (buffer, unitário, com embed de imagens) **e** `streamInfractionReport` (streaming, relatório por condomínio). T-05 (streaming) feito.
+- **Vars:** nenhuma. **Real x mock:** real (pdfkit).
+
+### 2.9 `MailModule` (Resend) — ✅ — **[FORA DO SDD v2.0]**
+- **Service** [mail.service.ts](../src/mail/mail.service.ts): `sendInfractionEmail` (HTML+texto+PDF anexado em base64). Registra `Notification` ao enviar.
+- **Real x mock:** real com `RESEND_API_KEY`; sem key → mock (loga, grava notification com `mock-<ts>`).
+- **Vars:** `RESEND_API_KEY` (opcional), `RESEND_FROM_EMAIL` (default `onboarding@resend.dev`).
+
+### 2.10 `WhatsappModule` (Z-API) — ✅ — **[FORA DO SDD v2.0]**
+- **Service** [whatsapp.service.ts](../src/whatsapp/whatsapp.service.ts): `sendInfractionAlert` (alerta complementar via `fetch` à Z-API), `normalizePhone` (assume BR, prefixa 55). Registra `Notification`.
+- **Real x mock:** real se `ZAPI_INSTANCE_ID + ZAPI_TOKEN + ZAPI_CLIENT_TOKEN`; senão mock.
+- **Vars:** `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN` (todas opcionais no schema).
+
+### 2.11 `NotificationsModule` — ✅ — **[FORA DO SDD v2.0]**
+- **Entidade** [notification.entity.ts](../src/notifications/entities/notification.entity.ts): `infraction` (FK CASCADE), `channel` (email/whatsapp), `recipient`, `providerId`, `status` (sent/delivered/opened/clicked/bounced/failed), `failureReason`, timestamps.
+- **Service:** `record`, `updateStatus`, `findByInfraction` (tolerante a falha — nunca quebra o fluxo principal).
+- **Controllers:** `GET /infractions/:id/notifications` (JwtAuthGuard + InfractionAccessGuard); `POST /webhooks/resend` ([webhooks.controller.ts](../src/notifications/webhooks.controller.ts)) com **verificação de assinatura svix/HMAC** (`RESEND_WEBHOOK_SECRET`).
+
+### 2.12 `AuditModule` — ✅ — **[FORA DO SDD v2.0]**
+- **Entidade** [audit-log.entity.ts](../src/audit/entities/audit-log.entity.ts): `createdAt`, `userId/userEmail/userIsMaster`, `companyId` (índice), `action` (11 ações), `entity`, `entityId`, `context (jsonb)`.
+- **Service** [audit.service.ts](../src/audit/audit.service.ts): `log` (fire-and-forget, não quebra fluxo), `logAsync`, `list` (paginado, escopo por empresa).
+- **Controller:** `GET /audit-log` — master vê tudo (filtro opcional por `companyId`); demais só da própria empresa.
+
+### 2.13 `DashboardModule` — ✅ — **[FORA DO SDD v2.0]**
+- **Service** [dashboard.service.ts](../src/dashboard/dashboard.service.ts): `getMetrics` — total, por status, por mês (6 meses), top 5 unidades reincidentes, taxa de aprovação. Filtrado por `companyId` (master vê tudo).
+- **Controller:** `GET /dashboard` (JwtAuthGuard).
+
+### 2.14 `HealthModule` — ✅
+- [health.controller.ts](../src/health/health.controller.ts): `GET /health/live` (estático) e `GET /health/ready` (Terminus `pingCheck` no Postgres). T-09 feito.
+
+### 2.15 `common/` — ✅
+- **Filtros/interceptors:** `HttpExceptionFilter`, `ResponseInterceptor` (`{ statusCode, data }`).
+- **Config:** `env.schema.ts` (Joi), `require-env.ts`, `cors.ts` (`parseCorsOrigins`).
+- **Guards:** `RolesGuard` (por condomínio via `user_condominium`), `MasterGuard`, `CompanyAdminGuard`, `InfractionAccessGuard` (Infraction→Unit→Condominium→companyId), `roles.guard`.
+- **Decorators:** `@CurrentActor()` (extrai `Actor` do JWT), `@Roles()`.
+- **DTOs:** `pagination.dto.ts`, `paginated-result.dto.ts`. **Enum:** `UserRole`.
+
+---
+
+## 3. Camada de boot / configuração
+
+- [app.module.ts](../src/app.module.ts): `ConfigModule` com **`validationSchema` Joi** (T-18/T-03 ✓), `ThrottlerModule` global + `ThrottlerGuard` via `APP_GUARD` (T-08 ✓), `LoggerModule` (nestjs-pino, T-08 ✓), `TypeOrmModule.forRootAsync` (`synchronize: false`, `autoLoadEntities`).
+- [setup-app.ts](../src/setup-app.ts): CORS dinâmico via `CORS_ORIGINS` (T-01 ✓), prefixo `api/v1`, pipes/filtros/interceptors globais. Extraído para ser reusável em testes e2e.
+- [main.ts](../src/main.ts): bootstrap + **Swagger em `/api/docs`** (T-16 ✓) + logger pino.
+- [data-source.ts](../src/data-source.ts): usa `requireEnv`/`requireEnvInt` (**sem fallbacks hard-coded** — T-02 ✓), lista 8 entidades explicitamente.
 
 ---
 
 ## 4. Banco e migrations
 
-Única migration: [src/migrations/1761765454776-Initial.ts](../src/migrations/1761765454776-Initial.ts).
+13 migrations em ordem cronológica (`synchronize: false`, toda mudança via migration — C4 ✓):
 
-| Tabela | Colunas (resumo) | PK | Unique | FK |
-|---|---|---|---|---|
-| `condominium` | `id`, `name`, `cnpj`, `address` | `id` | `cnpj` | — |
-| `unit` | `id`, `identifier`, `ownerName`, `condominiumId` | `id` | — | `condominiumId → condominium.id` |
-| `infraction` | `id`, `description`, `formalDescription`, `suggestedPenalty`, `status` (enum), `occurrenceDate`, `updatedAt`, `unitId` | `id` | — | `unitId → unit.id` |
-| `user` | `id`, `nome`, `email`, `senha` | `id` | `email` | — |
-| ENUM | `infraction_status_enum` = `pending/analyzed/approved/sent` | | | |
+| Migration | O que faz |
+|---|---|
+| `Initial` | condominium, unit, infraction (enum status), user |
+| `AddUserCondominiumRole` | tabela `user_condominium` (RBAC por condomínio) |
+| `AddResidentContactToUnit` | `residentEmail`, `residentPhone` |
+| `AddRegimentoToCondominium` | regimento PDF (bytea) no condomínio |
+| `AddApprovedAtToInfraction` / `AddSentAtToInfraction` / `AddWhatsappSentAtToInfraction` | timestamps do fluxo |
+| `AddInfractionImage` | tabela `infraction_image` (bytea) |
+| `AddCompanyAndMasterUser` | tabela `company`, `user.isMaster/companyId`, FKs, **seed da Empresa Demo + master** |
+| `AddAuditLog` | tabela `audit_log` |
+| `AddSoftDelete` | `deletedAt` em condominium/unit/infraction |
+| `AddNotificationsTable` | tabela `notification` |
+| `AddMustChangePassword` | `user.mustChangePassword` |
 
-- FKs sem cascade (`ON DELETE NO ACTION`) — deletar condomínio com unidades falhará na FK. Comportamento intencional ou esquecido? Registrar para discussão.
-- Não foi possível rodar `npm run migration:run` end-to-end: **sem `.env` no repo**, e (por política da T-00) não foi criado um.
+⚠️ **Seed do master diverge do SDD** (T-04 / §2.2): o master é semeado com **hash bcrypt hard-coded** na migration `AddCompanyAndMasterUser` (`master@audicon.com` / `MasterAudicon@2026`), **não** lendo `MASTER_EMAIL`/`MASTER_PASSWORD` do ambiente. Também semeia uma "Empresa Demo Audicon" (id=1) e faz backfill de users/condomínios para ela. Ver §6 R2 e §7.
+
+> Migrations não foram executadas nesta tarefa (T-00 é só leitura; não há `.env` real no ambiente de discovery).
 
 ---
 
-## 5. Configuração e segredos
+## 5. Configuração e segredos (`.env.example` existe ✓)
 
-**Variáveis referenciadas no código:**
+Variáveis no `env.schema.ts` (Joi): `NODE_ENV`, `PORT`, `DB_*` (required), `JWT_SECRET` (≥16, required), `JWT_EXPIRATION` (required), `CORS_ORIGINS` (required), `GEMINI_*` (opcionais), `RESEND_*` (opcionais), `ZAPI_*` (opcionais), `LOG_LEVEL`.
 
-| Variável | Onde | Default no código | Obrigatória? |
+⚠️ **`MASTER_EMAIL` e `MASTER_PASSWORD` NÃO estão no `env.schema.ts`** — coerente com o fato de o master ser semeado por hash fixo, mas **diverge do SDD T-18**, que exige essas variáveis no schema de validação.
+
+---
+
+## 6. Pontos de atenção / riscos
+
+| # | Item | Risco | Observação |
 |---|---|---|---|
-| `DB_HOST` | `data-source.ts`, `app.module.ts` | `'localhost'` (só em data-source) | Sim |
-| `DB_PORT` | idem | `5432` (só em data-source) | Sim |
-| `DB_USERNAME` | idem | `'postgres'` (só em data-source) | Sim |
-| `DB_PASSWORD` | idem | `'postgres'` (só em data-source) | Sim |
-| `DB_DATABASE` | idem | `'audicon'` (só em data-source) | Sim |
-| `JWT_SECRET` | `auth.module.ts`, `jwt.strategy.ts` | — | Sim |
-| `JWT_EXPIRATION` | `auth.module.ts` | — | Sim |
-| `GEMINI_API_KEY` | `ia.service.ts` | — | Em produção, sim |
-| `GEMINI_API_ENDPOINT` | `ia.service.ts` | `https://generativelanguage.googleapis.com/v1` | Não |
-| `GEMINI_MODEL` | `ia.service.ts` | `gemini-1.5-pro` | Não |
-| `NODE_ENV` | `ia.service.ts`, `app.service.ts` | `'development'` | Recomendada |
-| `PORT` | `main.ts` | `3000` | Não |
+| **R1** | `POST /users` público, sem guard nem papel | **Alto** — qualquer um cria usuário | Contradiz hierarquia de criação do SDD §2.1/T-06. Provável resquício do código v1. Avaliar remover/proteger. |
+| **R2** | Master semeado com hash bcrypt hard-coded na migration | Médio — credencial fixa versionada | Diverge de T-04 (deveria ler `MASTER_EMAIL`/`MASTER_PASSWORD`). Senha conhecida em repo; trocar em prod. |
+| R3 | `senha` sem `select:false`/`@Exclude()` | Baixo (hoje) | Proteção é manual (`delete senha`); não estrutural (C10 em sentido fraco). |
+| R4 | IA usa `eval('import(...)')` | Baixo | Funcional; frágil para tooling. |
+| R5 | Rotas binárias (`/document`, `/regimento`, `/images/:id`, `report.pdf`, `export`) usam `@Res()` cru | Aceitável | Bypass legítimo do `ResponseInterceptor` (C2) por serem binário/CSV; registrar como exceção. |
+| R6 | `RolesGuard` resolve condomínio por `params.condominiumId ?? params.id` | Baixo | Em rotas sem esses params o guard nega; conferir cobertura por rota. |
 
-**Gap:** `.env.example` **não existe**. T-01/T-02/T-03 criarão.
-
-`docker-compose.yml` referencia `${DB_USERNAME}`, `${DB_PASSWORD}`, `${DB_DATABASE}` via `env_file: .env`.
+Nenhum módulo é stub. Não há regressão de cobertura aparente (thresholds ativos no `package.json`).
 
 ---
 
-## 6. Cobertura de testes (executada)
+## 7. Divergências SDD v2.0 vs. código real ⭐ (seção crítica)
 
-Comando: `npx jest --coverage` (via `rtk proxy`). 13 suites · **84 testes · 100% passando**.
+> Esta seção é a base para **corrigir o SDD v2.0**, que foi escrito sem conhecer o estado real do código.
+
+### 7.1 Modelo de papéis / RBAC — **divergência estrutural**
+
+| Aspecto | SDD v2.0 (§2.1) | Código real (`master`) |
+|---|---|---|
+| Papéis | `MASTER`, `GERENTE`, `FUNCIONARIO` (por **empresa**) | `ADMIN`, `MANAGER`, `RESIDENT` (por **condomínio**, em `user_condominium`) + flag `isMaster` no `User` |
+| Morador | "**NÃO existe** perfil de morador" | Existe papel **`RESIDENT`** (acesso de leitura no condomínio) — ver [rbac.md](./rbac.md) |
+| Granularidade do tenant | Isolamento por `companyId` (C9, central) | Isolamento por `companyId` em guards (`InfractionAccessGuard`, `CompanyAdminGuard`) **+** papéis por condomínio |
+| Master | Papel `MASTER` no enum | `isMaster: boolean` no `User` (não é valor de enum) |
+
+➡️ **Decisão necessária:** o SDD deve ser atualizado para o modelo real (papéis por condomínio + `isMaster`), **ou** o código deve ser renomeado para o vocabulário do SDD. O modelo real é mais granular e já está em produção; recomendo alinhar o SDD ao código, decidindo explicitamente o destino do papel `RESIDENT`.
+
+### 7.2 C9 (isolamento central) — **parcialmente diferente do prescrito**
+O SDD pede um mecanismo **único e central** (guard + query scope/interceptor), "nunca repetido manualmente por service". O código usa **guards dedicados** (`InfractionAccessGuard`, `CompanyAdminGuard`, `MasterGuard`) e, em vários services/dashboard, o filtro `companyId` é **passado como parâmetro** (`findAll(..., companyId, isMaster)`). Funciona e é testável, mas **não é um único query-scope central** — é uma divergência de implementação a registrar.
+
+### 7.3 Seed do master — **diverge de T-04 e §2.2**
+Hash bcrypt fixo na migration em vez de ler `MASTER_EMAIL`/`MASTER_PASSWORD`. Essas vars não estão no `env.schema`. (Ver §4, §6 R2.)
+
+### 7.4 JWT em header, não cookie — **T-07 não implementado**
+O SDD (T-07, P1) pede migrar JWT para cookie `httpOnly`. O código mantém `Authorization: Bearer` + (presumível) `localStorage` no front. Pendente.
+
+### 7.5 DTO de login ausente — **C1 em sentido estrito**
+Login lê `req.body` sem DTO `class-validator` (documentado só no Swagger).
+
+### 7.6 Features no código que o SDD v2.0 NÃO menciona (a **mais**)
+O SDD v2.0 não previu — precisam ser **incorporados ao SDD**:
+- **MailModule (Resend)** — envio de e-mail com PDF.
+- **WhatsappModule (Z-API)** — alerta complementar.
+- **NotificationsModule** — histórico de notificações + webhook Resend com verificação de assinatura.
+- **AuditModule** — log de 11 ações sensíveis, escopo por empresa.
+- **DashboardModule** — métricas.
+- **Imagens de infração** (`infraction_image`, bytea).
+- **Regimento PDF por condomínio** + **leitura pela IA** (`extractRegimentoText`, `pdf-parse`).
+- **Reincidência** (prompts v2/v3 com histórico).
+- **Fluxo de aprovação/envio** (`approvedAt`, `sentAt`, `whatsappSentAt`).
+- **Export CSV** de infrações.
+- **`mustChangePassword`** + reset de senha + senha temporária.
+
+### 7.7 Tarefas do SDD §5 — situação real
+
+| Tarefa | Status real |
+|---|---|
+| T-00 Discovery | ✅ (este documento) |
+| T-01 CORS por env | ✅ `setup-app.ts` + `cors.ts` |
+| T-02 remover fallbacks data-source | ✅ `require-env.ts` |
+| T-03 validação de env | ✅ Joi `env.schema.ts` |
+| T-04 seed master | 🟡 implementado, mas **diverge** (hash fixo, sem env vars) |
+| T-05 RBAC | ✅ implementado, **modelo divergente** (§7.1) |
+| T-06 criação hierárquica de usuário | 🟡 via `CompaniesController`; mas `POST /users` público é furo (R1) |
+| T-07 JWT em cookie | ❌ não feito |
+| T-08 rate limiting | ✅ Throttler global + 10/min no analyze |
+| T-09 hash não vaza | 🟡 manual, não estrutural (R3) |
+| T-10 paginação | ✅ `PaginationDto` em condominiums/infractions |
+| T-11 idioma dos campos | 🟡 `User` ainda em PT (`nome`/`senha`); resto em EN — **não padronizado** |
+| T-12 soft delete | ✅ condominium/unit/infraction |
+| T-13/T-14 telas + middleware | frontend (fora deste repo) |
+| T-15 CORS multi-origem | ✅ |
+| T-16 Swagger | ✅ `/api/docs` |
+| T-17 gen tipos front | frontend |
+| T-18 validação estrita env | 🟡 ✅ em geral, mas **sem `MASTER_*`** no schema |
+| T-19 deploy | ❌/externo |
+| T-20 CI | ✅ `feat/t-11-ci-pipeline` mergeado |
+| T-21–T-25 polish UX | frontend |
+| T-26 cobertura por módulo | ✅ thresholds por módulo no `package.json` |
+| T-27 logger estruturado | ✅ pino |
+| T-28 IA assíncrona | ❌ (síncrono com timeout) |
+| T-29 prompt versionado | ✅ `prompts/*.md` v1/v2/v3 |
+
+---
+
+## 8. Status das branches (mergeadas vs. pendentes)
+
+**Mergeadas em `master`** (todas as `feat/*`, `chore/*`, `docs/*`, `fix/*` — 41 branches):
+`chore/node-20-and-sdd-bump`, `chore/smoke-e2e-runner`, `chore/t-12-prettier-eol-normalization`, `docs/roadmap`, `docs/sdd-multi-tenant-update`, `docs/sync-backlog`, `feat/admin-create-employees`, `feat/audit-condominium`, `feat/audit-log`, `feat/authz-master-admin`, `feat/condominium-regimento-ai`, `feat/csv-export`, `feat/dashboard`, `feat/delete-member`, `feat/ia-reincidencia`, `feat/infraction-approval`, `feat/infraction-company-isolation`, `feat/infraction-images`, `feat/infraction-send-email`, `feat/infraction-whatsapp`, `feat/master-list-users`, `feat/multi-tenant-company-foundation`, `feat/notification-history`, `feat/pagination`, `feat/password-reset`, `feat/rate-limiting`, `feat/soft-delete`, `feat/swagger-openapi`, `feat/t-01-dynamic-cors`, `feat/t-02-strict-env-config`, `feat/t-03-env-validation-schema`, `feat/t-04-ia-prompt-timeout-errors`, `feat/t-05-pdf-report-streaming`, `feat/t-06-rbac`, `feat/t-07-coverage-thresholds`, `feat/t-08-pino-logger`, `feat/t-09-healthcheck-readiness`, `feat/t-10-docker-dev-compose`, `feat/t-11-ci-pipeline`, `feat/unit-resident-contact`, `fix/infractions-query-dto`.
+
+**Pendentes (trabalho solto em branch, ainda NÃO em `master`):**
+
+| Branch | Commits à frente de master | Natureza |
+|---|---|---|
+| `refactor/current-actor-decorator` | 1 | refactor do decorator `@CurrentActor` |
+| `refactor/unique-violation-helper` | 5 | helper para tratar violação de unicidade (23505) |
+| `refactor/split-infractions-service` | 6 | divisão do `InfractionsService` em services menores |
+
+> Obs.: o tip de `master` já contém o merge do PR #44 (`refactor/current-actor-decorator`); a branch ainda aparece com 1 commit não-ancestral (provável diferença de squash/merge). Tratar as 3 como refactors em andamento.
+
+---
+
+## 9. Cobertura de testes
+
+Coletada com `npm run test:cov -- --maxWorkers=2 --workerIdleMemoryLimit=512MB` (exit 0).
+
+> ⚠️ **Nota de instabilidade:** `npm run test:cov` **sem** limite de workers falha com `FATAL ERROR: Zone Allocation failed - process out of memory` / SIGTERM nos workers (mesmo sintoma da sessão anterior). Com `--maxWorkers=2` (workaround documentado no `CLAUDE.md`) roda até o fim. A coleta abaixo é confiável.
 
 ```
-Statements   : 91.43% ( 299/327 )
-Branches     : 63.63% ( 42/66 )
-Functions    : 95.38% ( 62/65 )
-Lines        : 90.47% ( 266/294 )
+Test Suites: 37 passed, 37 total
+Tests:       307 passed, 307 total
+
+Statements   : 92.21% ( 1018/1104 )
+Branches     : 70.41% ( 219/311 )
+Functions    : 90.55% ( 163/180 )
+Lines        : 92.15% ( 952/1033 )
 ```
 
-Por arquivo:
-
-| Arquivo | Stmts | Branches | Funcs | Lines |
-|---|---:|---:|---:|---:|
-| `app.controller.ts` | 100% | 100% | 100% | 100% |
-| `app.service.ts` | 100% | 100% | 100% | 100% |
-| `auth/auth.controller.ts` | 83.33% | 100% | 33.33% | 80% |
-| `auth/auth.service.ts` | 100% | 100% | 100% | 100% |
-| `condominiums/condominiums.controller.ts` | 100% | 100% | 100% | 100% |
-| `condominiums/condominiums.service.ts` | 100% | 100% | 100% | 100% |
-| **`ia/ia.service.ts`** | **62.31%** | **46.34%** | **83.33%** | **61.19%** |
-| `infractions/infractions.controller.ts` | 100% | 100% | 100% | 100% |
-| `infractions/infractions.service.ts` | 100% | 100% | 100% | 100% |
-| `pdf/pdf.service.ts` | 100% | 50% | 100% | 100% |
-| `units/units.controller.ts` | 100% | 100% | 100% | 100% |
-| `units/units.service.ts` | 100% | 100% | 100% | 100% |
-| `users/users.controller.ts` | 100% | 100% | 100% | 100% |
-| `users/users.service.ts` | 100% | 100% | 100% | 100% |
-
-> `coveragePathIgnorePatterns` exclui `main.ts`, `app.module.ts` e `data-source.ts` — exatamente os arquivos com mais lógica de configuração crítica (alvos T-01/T-02/T-03). Verificar se é apropriado ou se deveria entrar quando esses arquivos forem refatorados.
-
-E2E (`npx jest --config ./test/jest-e2e.json`): **1 suite · 1 teste · passou** (apenas `GET /` ping). Não há e2e para auth, condominiums, units, infractions.
+- 37 suites, **307 testes, 100% passando** (~208s com 2 workers).
+- Acima dos thresholds globais do `package.json` (88/84/88/65). Thresholds por módulo ativos para `auth`, `ia`, `pdf`, `infractions`.
+- Logs de erro vistos na saída (`db down`, `Gemini: upstream/timeout`) são **esperados** — testes de caminho de erro (audit fire-and-forget, IA timeout/upstream).
+- Há specs e2e em `test/` (`cors.e2e-spec.ts`, `reports.e2e-spec.ts` etc.); não executados nesta coleta (exigem stack).
 
 ---
 
-## 7. Lint
+## 10. Próximos passos sugeridos (para decisão humana — não executados)
 
-Comando: `npx eslint "{src,test}/**/*.ts" --no-fix` (o script `npm run lint` original usa `--fix`, o que modificaria código — fora do escopo da T-00).
-
-Resultado: **2.294 erros · 0 warnings · todos `prettier/prettier`**. Padrões dominantes:
-
-- `Delete ␍` (line endings CRLF — Windows + Prettier sem `endOfLine: 'auto'`)
-- `Replace ········ with ····` (tabs/4-spaces nos arquivos vs. 2-spaces no Prettier)
-
-A regra está em [.prettierrc](../.prettierrc) (não inspecionado aqui em detalhe — verificar). Sugestão: criar tarefa pequena (fora T-01..T-03) para configurar `.gitattributes` com `* text eol=lf` + `prettier --write` em PR isolado.
-
----
-
-## 8. Lacunas vs. SDD §3 (relacionamentos)
-
-- **`User ↔ Condominium`: não existe no código.** SDD §3.2 já marca como dúvida; confirmado: `User` não tem FK nem coluna que conecte a `Condominium`. Logo:
-  - Não há multi-tenancy real hoje.
-  - Endpoints CRUD de `Condominium` exigem JWT, mas qualquer usuário autenticado pode listar/criar qualquer condomínio.
-  - T-06 (RBAC) depende dessa decisão.
-- **Sem coluna `role`/`papel` em `User`.** Modelo precisa ser estendido para suportar `ADMIN/MANAGER/RESIDENT` previstos no T-06.
-
----
-
-## 9. Pontos de atenção / riscos detectados
-
-| # | Item | Risco | Onde tratar |
-|---|---|---|---|
-| R1 | CORS hard-coded em `main.ts` | Bloqueio em deploys além de localhost:4173 | **T-01** |
-| R2 | Fallbacks em `data-source.ts` | Migrations rodam contra DB errado se `.env` ausente | **T-02** |
-| R3 | Sem validação de schema do `.env` | App sobe com config inválida | **T-03** |
-| R4 | Lint 100% quebrado por EOL/indentação | Não há barreira de estilo no CI | Tarefa nova (sugestão T-12) |
-| R5 | `scripts/e2e-runner.mjs` referencia rotas inexistentes (`/condominios`, etc.) | Script enganoso para QA manual | Tarefa nova (ou remover) |
-| R6 | `User` sem relação com `Condominium` nem `role` | Bloqueia T-06; potencial vazamento de dados entre condomínios | Decisão arquitetural antes de T-06 |
-| R7 | `Unit.identifier` sem unique no DB, mas service trata `23505` | Catch nunca dispara | T-04+ |
-| R8 | `Units.findOne(id)` não filtra por `condominiumId` no PATCH/DELETE | IDOR (cross-condominium update/delete) | Pequeno fix dedicado |
-| R9 | `IaService` usa `eval('import(...)')` | Frágil, dificulta análise estática | Resolver em T-04 (refatoração do prompt/cliente) |
-| R10 | `IaService` sem timeout configurável | Pode bloquear request indefinidamente — exatamente o que SDD T-04 alerta | T-04 |
-| R11 | `IaService` loga prefixo da API key | Vazamento parcial em logs | Pequeno fix |
-| R12 | `PdfService` bufferiza em memória | Contraria T-05 (streaming) | T-05 |
-| R13 | `User.senha` rehash só em `@BeforeInsert` | `repo.update` futuro não rehasheia | Cuidar quando endpoint update for criado |
-| R14 | `InfractionsController.generateDocument` usa `@Res()` cru | Bypass do `ResponseInterceptor` | Documentar exceção legítima (PDF binário) na próxima revisão do SDD |
-| R15 | `coveragePathIgnorePatterns` exclui `main.ts`, `app.module.ts`, `data-source.ts` | Áreas críticas sem cobertura | Reavaliar após T-01..T-03 |
-| R16 | Sem `.env.example` | Onboarding manual e propenso a erro | T-01/T-02/T-03 |
-| R17 | `app.service.getStatus()` retorna `database: 'connected'` hard-coded | Falso positivo em monitoramento | T-09 (healthcheck) |
-
----
-
-## 10. Próximos passos sugeridos
-
-1. Aprovar este relatório (PR T-00).
-2. Em sequência, idealmente nesta ordem:
-   - **T-02** primeiro (eliminar fallbacks de `data-source.ts` + criar `requireEnv` + esboço inicial de `.env.example`).
-   - **T-03** logo depois (schema validation usa `requireEnv` ou Joi/Zod sobre o `.env`).
-   - **T-01** (CORS dinâmico) — depende do `.env.example` já ter o slot pronto.
-3. Tarefa adjacente "T-12" sugerida: normalizar EOL (`.gitattributes` + `prettier --write` em PR único, sem `--fix` no lint para evitar churn diário).
-4. Antes de T-06 (RBAC), trazer decisão sobre `User ↔ Condominium`.
+1. **Atualizar o SDD v2.0** para refletir o código real: modelo de papéis (§7.1), features extras (§7.6), e marcar tarefas já entregues (§7.7). O SDD v2.0 está, na prática, desatualizado em relação ao `master`.
+2. **Decidir sobre o papel `RESIDENT`** (manter como leitura ou remover, dado que o SDD diz que morador não existe).
+3. **Fechar o furo R1** (`POST /users` público) — alta prioridade de segurança.
+4. **Alinhar o seed do master** (R2) ao SDD (env vars) ou ajustar o SDD à decisão de hash fixo + troca obrigatória.
+5. Mergear (ou descartar) as 3 branches de refactor pendentes.
+6. Itens de fato pendentes do plano: **T-07** (cookie httpOnly), **T-11** (padronizar idioma `User`), **T-19** (deploy), **T-28** (IA assíncrona, se necessário).
 
 ---
 
 ## 11. Metadados de execução
 
-- **Comandos executados (somente leitura/relatório):**
-  - `npm ci` (necessário porque `node_modules` ausente)
-  - `npx jest --coverage` → 84/84 passou, summary acima
-  - `npx jest --config ./test/jest-e2e.json` → 1/1 passou
-  - `npx eslint "{src,test}/**/*.ts" --no-fix` → 2.294 erros prettier
-  - `npm run migration:run` → **não executado** (sem `.env`, política T-00 não cria)
-- **Arquivos modificados nesta tarefa:**
-  - Movido: `SDD-audicon.md` → `docs/SDD-audicon.md`
-  - Criado: `docs/state-of-code.md` (este arquivo)
-  - Nenhum arquivo dentro de `src/` ou `test/` foi tocado.
+- **Branch de discovery** trazida ao nível de `master` via merge para inventariar o código real (a branch havia sido criada de um ponto antigo).
+- **Documento anterior preservado:** `docs/state-of-code-2026-05-15.md`.
+- **Comandos executados (somente leitura):** `git` (inspeção de branches/merge-base), `npm run test:cov -- --maxWorkers=2` (cobertura — ver §9).
+- **Nenhum arquivo em `src/` ou `test/` foi modificado.**
