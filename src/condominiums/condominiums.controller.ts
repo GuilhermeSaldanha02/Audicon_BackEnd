@@ -28,7 +28,6 @@ import { Response } from 'express';
 import { CondominiumsService } from './condominiums.service';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
-import { AddMemberDto } from './dto/add-member.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { MasterGuard } from '../common/guards/master.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -68,11 +67,7 @@ export class CondominiumsController {
   })
   @Get()
   findAll(@CurrentActor() actor: Actor, @Query() pagination: PaginationDto) {
-    return this.condominiumsService.findAll(
-      actor.userId,
-      pagination,
-      actor.companyId,
-    );
+    return this.condominiumsService.findAll(pagination, actor.companyId);
   }
 
   @ApiOperation({ summary: 'Buscar condomínio por ID' })
@@ -109,49 +104,6 @@ export class CondominiumsController {
   @Delete(':id')
   remove(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
     return this.condominiumsService.remove(id, actor);
-  }
-
-  @ApiOperation({ summary: 'Adicionar membro ao condomínio (requer ADMIN)' })
-  @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({
-    status: 201,
-    description: 'Membro adicionado ou papel atualizado',
-  })
-  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
-  @UseGuards(RolesGuard, CondominiumAccessGuard)
-  @Roles(SystemRole.GERENTE)
-  @Post(':id/members')
-  addMember(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() addMemberDto: AddMemberDto,
-  ) {
-    return this.condominiumsService.addMember(id, addMemberDto);
-  }
-
-  @ApiOperation({ summary: 'Remover membro do condomínio (requer ADMIN)' })
-  @ApiParam({ name: 'id', type: Number, description: 'ID do condomínio' })
-  @ApiParam({
-    name: 'userId',
-    type: Number,
-    description: 'ID do usuário a remover',
-  })
-  @ApiResponse({ status: 200, description: 'Membro removido' })
-  @ApiResponse({
-    status: 400,
-    description: 'Não é possível remover o último ADMIN',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Condomínio ou membro não encontrado',
-  })
-  @UseGuards(RolesGuard, CondominiumAccessGuard)
-  @Roles(SystemRole.GERENTE)
-  @Delete(':id/members/:userId')
-  removeMember(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('userId', ParseIntPipe) userId: number,
-  ) {
-    return this.condominiumsService.removeMember(id, userId);
   }
 
   @ApiOperation({ summary: 'Upload do PDF de regimento (PDF, máx 5MB)' })

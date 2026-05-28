@@ -8,7 +8,6 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Unit } from '../../units/entities/unit.entity';
-import { UserCondominium } from '../../users/entities/user-condominium.entity';
 import { Company } from '../../companies/entities/company.entity';
 
 @Entity()
@@ -46,9 +45,6 @@ export class Condominium {
 
   @OneToMany(() => Unit, (unit) => unit.condominium)
   units: Unit[];
-
-  @OneToMany(() => UserCondominium, (uc) => uc.condominium)
-  memberships: UserCondominium[];
 
   @DeleteDateColumn({ type: 'timestamp', nullable: true })
   deletedAt: Date | null;

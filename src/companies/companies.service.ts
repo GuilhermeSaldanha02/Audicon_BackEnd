@@ -8,8 +8,6 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuditService, Actor } from '../audit/audit.service';
-import { UserCondominium } from '../users/entities/user-condominium.entity';
-import { UserRole } from '../common/enums/user-role.enum';
 import { SystemRole } from '../common/enums/system-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -38,8 +36,6 @@ export class CompaniesService {
     private readonly companiesRepository: Repository<Company>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
-    @InjectRepository(UserCondominium)
-    private readonly ucRepository: Repository<UserCondominium>,
     @InjectRepository(Condominium)
     private readonly condominiumsRepository: Repository<Condominium>,
     private readonly auditService: AuditService,
@@ -204,19 +200,10 @@ export class CompaniesService {
         'Não é possível resetar senha de usuário master por endpoint.',
       );
     }
-    if (opts.enforceNotAdmin) {
-      const adminCount = await this.ucRepository
-        .createQueryBuilder('uc')
-        .leftJoin('uc.condominium', 'condo')
-        .where('uc.userId = :id', { id: opts.targetUserId })
-        .andWhere('uc.role = :role', { role: UserRole.ADMIN })
-        .andWhere('condo.companyId = :cid', { cid: opts.companyId })
-        .getCount();
-      if (adminCount > 0) {
-        throw new ForbiddenException(
-          'Apenas master pode resetar senha de usuário ADMIN.',
-        );
-      }
+    if (opts.enforceNotAdmin && target.role === SystemRole.GERENTE) {
+      throw new ForbiddenException(
+        'Apenas master pode resetar senha de gerente.',
+      );
     }
     const tempPassword = generateTempPassword();
     target.senha = await bcrypt.hash(tempPassword, 10);

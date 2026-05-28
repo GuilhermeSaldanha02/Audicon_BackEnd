@@ -2,22 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CondominiumsService } from './condominiums.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Condominium } from './entities/condominium.entity';
-import { UserCondominium } from '../users/entities/user-condominium.entity';
-import { UsersService } from '../users/users.service';
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
-import { UserRole } from '../common/enums/user-role.enum';
 import { AuditService } from '../audit/audit.service';
 
 const makeQb = (data: any[], total = data.length) => ({
-  innerJoin: jest.fn().mockReturnThis(),
+  where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
   skip: jest.fn().mockReturnThis(),
   take: jest.fn().mockReturnThis(),
-  getMany: jest.fn().mockResolvedValue(data),
   getManyAndCount: jest.fn().mockResolvedValue([data, total]),
 });
 
@@ -33,14 +26,6 @@ describe('CondominiumsService', () => {
     delete: jest.Mock;
     softDelete: jest.Mock;
   };
-  let ucRepo: {
-    create: jest.Mock;
-    save: jest.Mock;
-    findOne: jest.Mock;
-    count: jest.Mock;
-    delete: jest.Mock;
-  };
-  let usersService: { findOneByEmail: jest.Mock };
 
   beforeEach(async () => {
     condoRepo = {
@@ -53,21 +38,11 @@ describe('CondominiumsService', () => {
       delete: jest.fn(),
       softDelete: jest.fn(),
     };
-    ucRepo = {
-      create: jest.fn(),
-      save: jest.fn(),
-      findOne: jest.fn(),
-      count: jest.fn(),
-      delete: jest.fn(),
-    };
-    usersService = { findOneByEmail: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CondominiumsService,
         { provide: getRepositoryToken(Condominium), useValue: condoRepo },
-        { provide: getRepositoryToken(UserCondominium), useValue: ucRepo },
-        { provide: UsersService, useValue: usersService },
         {
           provide: AuditService,
           useValue: {
@@ -88,7 +63,7 @@ describe('CondominiumsService', () => {
   });
 
   describe('create', () => {
-    it('deve criar condomínio vinculado à empresa (sem membership automática)', async () => {
+    it('cria condomínio vinculado à empresa', async () => {
       const dto: any = {
         name: 'Condo A',
         cnpj: '00.000.000/0000-00',
@@ -101,10 +76,9 @@ describe('CondominiumsService', () => {
       const result = await service.create(dto);
       expect(result).toEqual(saved);
       expect(condoRepo.create).toHaveBeenCalledWith(dto);
-      expect(ucRepo.save).not.toHaveBeenCalled();
     });
 
-    it('deve lançar ConflictException quando código 23505 (duplicado)', async () => {
+    it('traduz 23505 em ConflictException', async () => {
       const dto: any = {
         name: 'Condo A',
         cnpj: '00.000.000/0000-00',
@@ -122,7 +96,7 @@ describe('CondominiumsService', () => {
       );
     });
 
-    it('deve relançar erros genéricos sem transformação', async () => {
+    it('relança erros genéricos sem transformação', async () => {
       const dto: any = {
         name: 'Condo B',
         cnpj: '11.111.111/1111-11',
@@ -138,30 +112,36 @@ describe('CondominiumsService', () => {
   describe('findAll', () => {
     const pagination = { page: 1, limit: 20 };
 
-    it('deve retornar resultado paginado do usuário', async () => {
+    it('lista todos os condomínios da empresa do ator', async () => {
       const list = [{ id: 1 }, { id: 2 }];
-      condoRepo.createQueryBuilder.mockReturnValue(makeQb(list));
-      const result = await service.findAll(42, pagination);
+      const qb = makeQb(list);
+      condoRepo.createQueryBuilder.mockReturnValue(qb);
+      const result = await service.findAll(pagination, 7);
       expect(result).toEqual({ data: list, total: 2, page: 1, limit: 20 });
+      expect(qb.where).toHaveBeenCalledWith('c.companyId = :companyId', {
+        companyId: 7,
+      });
     });
 
-    it('deve retornar lista vazia quando usuário não é membro de nenhum', async () => {
-      condoRepo.createQueryBuilder.mockReturnValue(makeQb([]));
-      const result = await service.findAll(42, pagination);
-      expect(result).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+    it('sem companyId (master) não aplica filtro de empresa', async () => {
+      const list = [{ id: 1 }];
+      const qb = makeQb(list, 1);
+      condoRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll(pagination, null);
+      expect(qb.where).not.toHaveBeenCalled();
     });
 
-    it('deve aplicar skip e take corretos para page 3', async () => {
+    it('aplica skip e take corretos para page 3', async () => {
       const qb = makeQb([]);
       condoRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll(1, { page: 3, limit: 10 });
+      await service.findAll({ page: 3, limit: 10 }, 1);
       expect(qb.skip).toHaveBeenCalledWith(20);
       expect(qb.take).toHaveBeenCalledWith(10);
     });
   });
 
   describe('findByCompany', () => {
-    it('deve listar condomínios da empresa ordenados por nome', async () => {
+    it('lista condomínios da empresa ordenados por nome', async () => {
       const list = [{ id: 1 }, { id: 2 }];
       condoRepo.find.mockResolvedValue(list);
       const result = await service.findByCompany(7);
@@ -174,14 +154,14 @@ describe('CondominiumsService', () => {
   });
 
   describe('findOne', () => {
-    it('deve retornar um condomínio quando existir', async () => {
+    it('retorna um condomínio quando existir', async () => {
       const entity = { id: 1 };
       condoRepo.findOneBy.mockResolvedValue(entity);
       const result = await service.findOne(1);
       expect(result).toEqual(entity);
     });
 
-    it('deve lançar NotFoundException quando não existir', async () => {
+    it('lança NotFoundException quando não existir', async () => {
       condoRepo.findOneBy.mockResolvedValue(null);
       await expect(service.findOne(999)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -190,7 +170,7 @@ describe('CondominiumsService', () => {
   });
 
   describe('update', () => {
-    it('deve atualizar e retornar o condomínio atualizado', async () => {
+    it('atualiza e retorna o condomínio atualizado', async () => {
       const id = 1;
       const dto: any = { name: 'Atualizado' };
       const existing = { id, name: 'Antigo' };
@@ -204,7 +184,7 @@ describe('CondominiumsService', () => {
       expect(condoRepo.update).toHaveBeenCalledWith(id, dto);
     });
 
-    it('deve lançar NotFoundException quando não existir', async () => {
+    it('lança NotFoundException quando não existir', async () => {
       condoRepo.findOneBy.mockResolvedValue(null);
       await expect(
         service.update(999, { name: 'X' } as any),
@@ -214,177 +194,19 @@ describe('CondominiumsService', () => {
   });
 
   describe('remove', () => {
-    it('deve soft-deletar com sucesso', async () => {
+    it('soft-deleta com sucesso', async () => {
       condoRepo.findOneBy.mockResolvedValue({ id: 1 });
       condoRepo.softDelete.mockResolvedValue(undefined);
       await expect(service.remove(1)).resolves.toBeUndefined();
       expect(condoRepo.softDelete).toHaveBeenCalledWith(1);
     });
 
-    it('deve lançar NotFoundException quando não existir', async () => {
+    it('lança NotFoundException quando não existir', async () => {
       condoRepo.findOneBy.mockResolvedValue(null);
       await expect(service.remove(999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(condoRepo.softDelete).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('addMember', () => {
-    it('deve criar membership quando não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
-      usersService.findOneByEmail.mockResolvedValue({
-        id: 5,
-        email: 'novo@condo.com',
-        companyId: 1,
-      });
-      ucRepo.findOne.mockResolvedValue(null);
-      const membership = {
-        id: 1,
-        userId: 5,
-        condominiumId: 3,
-        role: UserRole.MANAGER,
-      };
-      ucRepo.create.mockReturnValue(membership);
-      ucRepo.save.mockResolvedValue(membership);
-
-      const result = await service.addMember(3, {
-        email: 'novo@condo.com',
-        role: UserRole.MANAGER,
-      });
-      expect(result).toEqual(membership);
-      expect(ucRepo.create).toHaveBeenCalledWith({
-        userId: 5,
-        condominiumId: 3,
-        role: UserRole.MANAGER,
-      });
-    });
-
-    it('deve atualizar role quando membership já existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
-      usersService.findOneByEmail.mockResolvedValue({
-        id: 5,
-        email: 'user@condo.com',
-        companyId: 1,
-      });
-      const existing = {
-        id: 1,
-        userId: 5,
-        condominiumId: 3,
-        role: UserRole.RESIDENT,
-      };
-      ucRepo.findOne.mockResolvedValue(existing);
-      ucRepo.save.mockResolvedValue({ ...existing, role: UserRole.ADMIN });
-
-      const result = await service.addMember(3, {
-        email: 'user@condo.com',
-        role: UserRole.ADMIN,
-      });
-      expect(result.role).toBe(UserRole.ADMIN);
-    });
-
-    it('deve lançar NotFoundException quando usuário não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
-      usersService.findOneByEmail.mockResolvedValue(null);
-      await expect(
-        service.addMember(3, {
-          email: 'nao@existe.com',
-          role: UserRole.RESIDENT,
-        }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
-
-    it('deve lançar NotFoundException quando condomínio não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue(null);
-      await expect(
-        service.addMember(999, {
-          email: 'user@condo.com',
-          role: UserRole.RESIDENT,
-        }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
-
-    it('deve rejeitar quando usuário pertence a empresa diferente', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 3, companyId: 1 });
-      usersService.findOneByEmail.mockResolvedValue({
-        id: 9,
-        email: 'outro@empresa.com',
-        companyId: 2,
-      });
-      await expect(
-        service.addMember(3, {
-          email: 'outro@empresa.com',
-          role: UserRole.MANAGER,
-        }),
-      ).rejects.toThrow(/mesma empresa/);
-    });
-  });
-
-  describe('removeMember', () => {
-    it('deve remover membro com sucesso', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
-      ucRepo.findOne.mockResolvedValue({
-        userId: 5,
-        condominiumId: 1,
-        role: UserRole.RESIDENT,
-      });
-      ucRepo.delete.mockResolvedValue(undefined);
-
-      await expect(service.removeMember(1, 5)).resolves.toBeUndefined();
-      expect(ucRepo.delete).toHaveBeenCalledWith({
-        userId: 5,
-        condominiumId: 1,
-      });
-    });
-
-    it('deve lançar NotFoundException quando membro não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
-      ucRepo.findOne.mockResolvedValue(null);
-
-      await expect(service.removeMember(1, 99)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
-      expect(ucRepo.delete).not.toHaveBeenCalled();
-    });
-
-    it('deve lançar NotFoundException quando condomínio não existe', async () => {
-      condoRepo.findOneBy.mockResolvedValue(null);
-
-      await expect(service.removeMember(999, 5)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
-    });
-
-    it('deve lançar BadRequestException ao remover o último ADMIN', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
-      ucRepo.findOne.mockResolvedValue({
-        userId: 5,
-        condominiumId: 1,
-        role: UserRole.ADMIN,
-      });
-      ucRepo.count.mockResolvedValue(1);
-
-      await expect(service.removeMember(1, 5)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-      expect(ucRepo.delete).not.toHaveBeenCalled();
-    });
-
-    it('deve remover ADMIN quando há mais de um', async () => {
-      condoRepo.findOneBy.mockResolvedValue({ id: 1 });
-      ucRepo.findOne.mockResolvedValue({
-        userId: 5,
-        condominiumId: 1,
-        role: UserRole.ADMIN,
-      });
-      ucRepo.count.mockResolvedValue(2);
-      ucRepo.delete.mockResolvedValue(undefined);
-
-      await expect(service.removeMember(1, 5)).resolves.toBeUndefined();
-      expect(ucRepo.delete).toHaveBeenCalledWith({
-        userId: 5,
-        condominiumId: 1,
-      });
     });
   });
 });
