@@ -4,11 +4,9 @@ import {
   Entity,
   Index,
   ManyToOne,
-  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { UserCondominium } from './user-condominium.entity';
 import { Company } from '../../companies/entities/company.entity';
 import { SystemRole } from '../../common/enums/system-role.enum';
 
@@ -43,9 +41,6 @@ export class User {
 
   @Column({ type: 'integer', nullable: true })
   companyId: number | null;
-
-  @OneToMany(() => UserCondominium, (uc) => uc.user)
-  memberships: UserCondominium[];
 
   @BeforeInsert()
   async hashSenha() {

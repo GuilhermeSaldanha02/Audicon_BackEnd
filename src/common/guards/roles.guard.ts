@@ -1,44 +1,32 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserCondominium } from '../../users/entities/user-condominium.entity';
-import { UserRole } from '../enums/user-role.enum';
+import { SystemRole } from '../enums/system-role.enum';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
+/**
+ * Guard de papel por empresa (modelo R-02/R-03+04).
+ *
+ * Lê `User.role` (SystemRole) já hidratado em `req.user` pela JwtStrategy
+ * — sem lookup em banco. Master bypassa.
+ *
+ * Isolamento por empresa é responsabilidade do CondominiumAccessGuard
+ * (rotas de condomínio/unidade) e do InfractionAccessGuard (rotas de
+ * infração). Ver R-05 para centralização futura.
+ */
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(
-    private reflector: Reflector,
-    @InjectRepository(UserCondominium)
-    private readonly ucRepo: Repository<UserCondominium>,
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+  canActivate(context: ExecutionContext): boolean {
+    const required = this.reflector.getAllAndOverride<SystemRole[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!required || required.length === 0) return true;
 
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
-    }
-
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user = context.switchToHttp().getRequest().user;
     if (!user) return false;
-
     if (user.isMaster) return true;
-
-    const rawId = request.params?.condominiumId ?? request.params?.id;
-    const condominiumId = rawId ? +rawId : NaN;
-    if (isNaN(condominiumId)) return false;
-
-    const membership = await this.ucRepo.findOne({
-      where: { userId: user.id, condominiumId },
-    });
-
-    if (!membership) return false;
-    return requiredRoles.includes(membership.role);
+    return required.includes(user.role);
   }
 }

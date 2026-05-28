@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -10,10 +9,6 @@ import { throwOnUniqueViolation } from '../common/helpers/unique-violation.helpe
 import { Condominium } from './entities/condominium.entity';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
-import { UserCondominium } from '../users/entities/user-condominium.entity';
-import { UserRole } from '../common/enums/user-role.enum';
-import { AddMemberDto } from './dto/add-member.dto';
-import { UsersService } from '../users/users.service';
 import { AuditService, Actor } from '../audit/audit.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResult } from '../common/dto/paginated-result.dto';
@@ -23,9 +18,6 @@ export class CondominiumsService {
   constructor(
     @InjectRepository(Condominium)
     private readonly condominiumsRepository: Repository<Condominium>,
-    @InjectRepository(UserCondominium)
-    private readonly ucRepository: Repository<UserCondominium>,
-    private readonly usersService: UsersService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -56,16 +48,13 @@ export class CondominiumsService {
   }
 
   async findAll(
-    userId: number,
     pagination: PaginationDto,
     companyId?: number | null,
   ): Promise<PaginatedResult<Condominium>> {
     const { page, limit } = pagination;
-    const qb = this.condominiumsRepository
-      .createQueryBuilder('c')
-      .innerJoin('c.memberships', 'uc', 'uc.userId = :userId', { userId });
+    const qb = this.condominiumsRepository.createQueryBuilder('c');
     if (companyId) {
-      qb.andWhere('c.companyId = :companyId', { companyId });
+      qb.where('c.companyId = :companyId', { companyId });
     }
     const [data, total] = await qb
       .skip((page - 1) * limit)
@@ -106,60 +95,6 @@ export class CondominiumsService {
         entityId: id,
       });
     }
-  }
-
-  async addMember(condominiumId: number, dto: AddMemberDto) {
-    const condominium = await this.findOne(condominiumId);
-    const user = await this.usersService.findOneByEmail(dto.email);
-    if (!user) {
-      throw new NotFoundException(`User with email ${dto.email} not found.`);
-    }
-    if (user.companyId !== condominium.companyId) {
-      throw new BadRequestException(
-        'O usuário não pertence à mesma empresa deste condomínio.',
-      );
-    }
-
-    const existing = await this.ucRepository.findOne({
-      where: { userId: user.id, condominiumId },
-    });
-    if (existing) {
-      existing.role = dto.role;
-      return this.ucRepository.save(existing);
-    }
-
-    const membership = this.ucRepository.create({
-      userId: user.id,
-      condominiumId,
-      role: dto.role,
-    });
-    return this.ucRepository.save(membership);
-  }
-
-  async removeMember(condominiumId: number, userId: number) {
-    await this.findOne(condominiumId);
-
-    const membership = await this.ucRepository.findOne({
-      where: { userId, condominiumId },
-    });
-    if (!membership) {
-      throw new NotFoundException(
-        `User #${userId} is not a member of condominium #${condominiumId}.`,
-      );
-    }
-
-    if (membership.role === UserRole.ADMIN) {
-      const adminCount = await this.ucRepository.count({
-        where: { condominiumId, role: UserRole.ADMIN },
-      });
-      if (adminCount <= 1) {
-        throw new BadRequestException(
-          'Cannot remove the last ADMIN of a condominium.',
-        );
-      }
-    }
-
-    await this.ucRepository.delete({ userId, condominiumId });
   }
 
   async setRegimento(condominiumId: number, filename: string, content: Buffer) {

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UnitsController } from './units.controller';
 import { UnitsService } from './units.service';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CondominiumAccessGuard } from '../common/guards/condominium-access.guard';
 
 describe('UnitsController', () => {
   let controller: UnitsController;
@@ -24,6 +25,8 @@ describe('UnitsController', () => {
       ],
     })
       .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(CondominiumAccessGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

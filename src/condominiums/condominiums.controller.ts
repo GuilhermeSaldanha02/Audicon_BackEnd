@@ -28,12 +28,12 @@ import { Response } from 'express';
 import { CondominiumsService } from './condominiums.service';
 import { CreateCondominiumDto } from './dto/create-condominium.dto';
 import { UpdateCondominiumDto } from './dto/update-condominium.dto';
-import { AddMemberDto } from './dto/add-member.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { MasterGuard } from '../common/guards/master.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CondominiumAccessGuard } from '../common/guards/condominium-access.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-role.enum';
+import { SystemRole } from '../common/enums/system-role.enum';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
@@ -67,11 +67,7 @@ export class CondominiumsController {
   })
   @Get()
   findAll(@CurrentActor() actor: Actor, @Query() pagination: PaginationDto) {
-    return this.condominiumsService.findAll(
-      actor.userId,
-      pagination,
-      actor.companyId,
-    );
+    return this.condominiumsService.findAll(pagination, actor.companyId);
   }
 
   @ApiOperation({ summary: 'Buscar condomínio por ID' })
@@ -79,8 +75,8 @@ export class CondominiumsController {
   @ApiResponse({ status: 200, description: 'Condomínio encontrado' })
   @ApiResponse({ status: 403, description: 'Sem acesso a este condomínio' })
   @ApiResponse({ status: 404, description: 'Condomínio não encontrado' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.RESIDENT)
+  @UseGuards(RolesGuard, CondominiumAccessGuard)
+  @Roles(SystemRole.GERENTE, SystemRole.FUNCIONARIO)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.condominiumsService.findOne(id);
@@ -90,8 +86,8 @@ export class CondominiumsController {
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Condomínio atualizado' })
   @ApiResponse({ status: 403, description: 'Apenas ADMIN pode editar' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(RolesGuard, CondominiumAccessGuard)
+  @Roles(SystemRole.GERENTE)
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -110,49 +106,6 @@ export class CondominiumsController {
     return this.condominiumsService.remove(id, actor);
   }
 
-  @ApiOperation({ summary: 'Adicionar membro ao condomínio (requer ADMIN)' })
-  @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({
-    status: 201,
-    description: 'Membro adicionado ou papel atualizado',
-  })
-  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Post(':id/members')
-  addMember(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() addMemberDto: AddMemberDto,
-  ) {
-    return this.condominiumsService.addMember(id, addMemberDto);
-  }
-
-  @ApiOperation({ summary: 'Remover membro do condomínio (requer ADMIN)' })
-  @ApiParam({ name: 'id', type: Number, description: 'ID do condomínio' })
-  @ApiParam({
-    name: 'userId',
-    type: Number,
-    description: 'ID do usuário a remover',
-  })
-  @ApiResponse({ status: 200, description: 'Membro removido' })
-  @ApiResponse({
-    status: 400,
-    description: 'Não é possível remover o último ADMIN',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Condomínio ou membro não encontrado',
-  })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Delete(':id/members/:userId')
-  removeMember(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('userId', ParseIntPipe) userId: number,
-  ) {
-    return this.condominiumsService.removeMember(id, userId);
-  }
-
   @ApiOperation({ summary: 'Upload do PDF de regimento (PDF, máx 5MB)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -163,8 +116,8 @@ export class CondominiumsController {
   })
   @ApiResponse({ status: 201, description: 'Regimento salvo' })
   @ApiResponse({ status: 400, description: 'Arquivo inválido ou ausente' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @UseGuards(RolesGuard, CondominiumAccessGuard)
+  @Roles(SystemRole.GERENTE)
   @Post(':id/regimento')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -191,6 +144,7 @@ export class CondominiumsController {
   @ApiOperation({ summary: 'Download do PDF de regimento' })
   @ApiResponse({ status: 200, description: 'PDF retornado' })
   @ApiResponse({ status: 404, description: 'Regimento não cadastrado' })
+  @UseGuards(CondominiumAccessGuard)
   @Get(':id/regimento')
   async downloadRegimento(
     @Param('id', ParseIntPipe) id: number,
@@ -208,8 +162,8 @@ export class CondominiumsController {
 
   @ApiOperation({ summary: 'Remove o regimento cadastrado' })
   @ApiResponse({ status: 200, description: 'Regimento removido' })
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @UseGuards(RolesGuard, CondominiumAccessGuard)
+  @Roles(SystemRole.GERENTE)
   @Delete(':id/regimento')
   removeRegimento(@Param('id', ParseIntPipe) id: number) {
     return this.condominiumsService.deleteRegimento(id);

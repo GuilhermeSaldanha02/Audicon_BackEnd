@@ -3,6 +3,7 @@ import { ReportsController } from './reports.controller';
 import { InfractionsService } from './infractions.service';
 import { PdfService } from '../pdf/pdf.service';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CondominiumAccessGuard } from '../common/guards/condominium-access.guard';
 
 describe('ReportsController', () => {
   let controller: ReportsController;
@@ -20,6 +21,8 @@ describe('ReportsController', () => {
       ],
     })
       .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(CondominiumAccessGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

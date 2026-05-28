@@ -5,7 +5,6 @@ import { QueryFailedError } from 'typeorm';
 import { CompaniesService } from './companies.service';
 import { Company } from './entities/company.entity';
 import { User } from '../users/entities/user.entity';
-import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { Condominium } from '../condominiums/entities/condominium.entity';
 import { AuditService } from '../audit/audit.service';
 import { SystemRole } from '../common/enums/system-role.enum';
@@ -15,15 +14,8 @@ describe('CompaniesService', () => {
   let companiesRepo: any;
   let usersRepo: any;
   let condosRepo: any;
-  let ucQb: any;
 
   beforeEach(async () => {
-    ucQb = {
-      leftJoin: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      getCount: jest.fn().mockResolvedValue(0),
-    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CompaniesService,
@@ -45,10 +37,6 @@ describe('CompaniesService', () => {
             findOne: jest.fn(),
             delete: jest.fn(),
           },
-        },
-        {
-          provide: getRepositoryToken(UserCondominium),
-          useValue: { createQueryBuilder: jest.fn(() => ucQb) },
         },
         {
           provide: getRepositoryToken(Condominium),
@@ -224,14 +212,14 @@ describe('CompaniesService', () => {
       isMaster: false,
       companyId: 1,
     };
-    it('reseta senha de funcionário não-admin (admin scope) e retorna nova temp', async () => {
+    it('reseta senha de FUNCIONARIO (admin scope) e retorna nova temp', async () => {
       usersRepo.findOne.mockResolvedValue({
         id: 5,
         companyId: 1,
         isMaster: false,
         email: 'func@x.com',
+        role: SystemRole.FUNCIONARIO,
       });
-      ucQb.getCount.mockResolvedValue(0); // não é admin
       usersRepo.save.mockResolvedValue({});
       const result = await service.resetPassword({
         companyId: 1,
@@ -257,14 +245,14 @@ describe('CompaniesService', () => {
       ).rejects.toThrow(/própria senha/);
     });
 
-    it('rejeita admin resetando outro admin (enforceNotAdmin=true)', async () => {
+    it('rejeita admin tentando resetar um GERENTE (enforceNotAdmin=true)', async () => {
       usersRepo.findOne.mockResolvedValue({
         id: 7,
         companyId: 1,
         isMaster: false,
-        email: 'outroadmin@x.com',
+        email: 'gerente@x.com',
+        role: SystemRole.GERENTE,
       });
-      ucQb.getCount.mockResolvedValue(1); // target é admin
       await expect(
         service.resetPassword({
           companyId: 1,
