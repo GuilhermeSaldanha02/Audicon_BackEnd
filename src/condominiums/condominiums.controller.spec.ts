@@ -3,6 +3,7 @@ import { CondominiumsController } from './condominiums.controller';
 import { CondominiumsService } from './condominiums.service';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { MasterGuard } from '../common/guards/master.guard';
+import { CondominiumAccessGuard } from '../common/guards/condominium-access.guard';
 import { Actor } from '../audit/audit.service';
 
 const mockActor: Actor = {
@@ -37,6 +38,8 @@ describe('CondominiumsController', () => {
       .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(MasterGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(CondominiumAccessGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

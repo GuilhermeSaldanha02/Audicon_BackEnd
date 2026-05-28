@@ -17,16 +17,17 @@ import {
 import { Response } from 'express';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { CondominiumAccessGuard } from '../common/guards/condominium-access.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-role.enum';
+import { SystemRole } from '../common/enums/system-role.enum';
 import { InfractionsService } from './infractions.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { ReportQueryDto } from './dto/report-query.dto';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@UseGuards(JwtAuthGuard, RolesGuard, CondominiumAccessGuard)
+@Roles(SystemRole.GERENTE, SystemRole.FUNCIONARIO)
 @Controller('condominiums/:condominiumId/infractions')
 export class ReportsController {
   constructor(

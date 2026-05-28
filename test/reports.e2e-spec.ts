@@ -6,6 +6,7 @@ import { InfractionsService } from '../src/infractions/infractions.service';
 import { PdfService } from '../src/pdf/pdf.service';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/common/guards/roles.guard';
+import { CondominiumAccessGuard } from '../src/common/guards/condominium-access.guard';
 import { setupApp } from '../src/setup-app';
 import { ConfigService } from '@nestjs/config';
 
@@ -48,6 +49,8 @@ describe('Reports (e2e)', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(CondominiumAccessGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
