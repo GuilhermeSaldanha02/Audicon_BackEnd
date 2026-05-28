@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { AuditService, Actor } from '../audit/audit.service';
 import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { UserRole } from '../common/enums/user-role.enum';
+import { SystemRole } from '../common/enums/system-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { throwOnUniqueViolation } from '../common/helpers/unique-violation.helper';
@@ -63,6 +64,7 @@ export class CompaniesService {
         isMaster: false,
         companyId: savedCompany.id,
         mustChangePassword: true,
+        role: SystemRole.GERENTE,
       });
       const savedUser = await this.usersRepository.save(user);
 
@@ -126,6 +128,7 @@ export class CompaniesService {
       isMaster: false,
       companyId,
       mustChangePassword: true,
+      role: SystemRole.FUNCIONARIO,
     });
     const saved = await this.usersRepository.save(user);
     if (actor) {

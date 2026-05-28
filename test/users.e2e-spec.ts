@@ -8,6 +8,7 @@ import { UsersController } from './../src/users/users.controller';
 import { UsersService } from './../src/users/users.service';
 import { JwtStrategy } from './../src/auth/strategies/jwt.strategy';
 import { MasterGuard } from './../src/common/guards/master.guard';
+import { SystemRole } from './../src/common/enums/system-role.enum';
 import { setupApp } from './../src/setup-app';
 
 /**
@@ -69,6 +70,7 @@ describe('POST /api/v1/users (e2e — proteção R1)', () => {
     nome: 'Maria Souza',
     email: 'maria@email.com',
     senha: 'S3nh@Segura',
+    role: SystemRole.FUNCIONARIO, // R-02: coluna NOT NULL sem default exige role explícito
   };
 
   it('rejeita requisição SEM autenticação com 401', async () => {

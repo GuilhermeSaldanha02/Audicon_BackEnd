@@ -8,6 +8,7 @@ import { User } from '../users/entities/user.entity';
 import { UserCondominium } from '../users/entities/user-condominium.entity';
 import { Condominium } from '../condominiums/entities/condominium.entity';
 import { AuditService } from '../audit/audit.service';
+import { SystemRole } from '../common/enums/system-role.enum';
 
 describe('CompaniesService', () => {
   let service: CompaniesService;
@@ -96,6 +97,7 @@ describe('CompaniesService', () => {
         expect.objectContaining({
           companyId: 2,
           isMaster: false,
+          role: SystemRole.GERENTE,
         }),
       );
     });
@@ -145,6 +147,7 @@ describe('CompaniesService', () => {
           isMaster: false,
           nome: 'Func A',
           email: 'a@empresa.com',
+          role: SystemRole.FUNCIONARIO,
         }),
       );
     });

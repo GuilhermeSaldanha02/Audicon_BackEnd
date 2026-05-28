@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+} from 'class-validator';
+import { SystemRole } from '../../common/enums/system-role.enum';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'Maria Souza' })
@@ -17,4 +24,12 @@ export class CreateUserDto {
   @MinLength(6, { message: 'A senha deve ter no mínimo 6 caracteres' })
   @IsNotEmpty({ message: 'A senha não pode ser vazia' })
   senha: string;
+
+  // R-02: papel é obrigatório e explícito (coluna NOT NULL sem default).
+  // PENDÊNCIA (ver nota do PR): este endpoint não valida coerência
+  // entre role e companyId — revisar junto da decisão de manter/remover.
+  @ApiProperty({ enum: SystemRole, example: SystemRole.FUNCIONARIO })
+  @IsEnum(SystemRole, { message: 'Papel inválido' })
+  @IsNotEmpty({ message: 'O papel não pode ser vazio' })
+  role: SystemRole;
 }

@@ -10,6 +10,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { UserCondominium } from './user-condominium.entity';
 import { Company } from '../../companies/entities/company.entity';
+import { SystemRole } from '../../common/enums/system-role.enum';
 
 @Entity()
 export class User {
@@ -30,6 +31,11 @@ export class User {
 
   @Column({ type: 'boolean', default: false })
   mustChangePassword: boolean;
+
+  // Papel por empresa (modelo-alvo R-02). NOT NULL sem default no banco:
+  // todo fluxo de criação deve informar o papel explicitamente.
+  @Column({ type: 'enum', enum: SystemRole })
+  role: SystemRole;
 
   @Index()
   @ManyToOne(() => Company, (company) => company.users, { nullable: true })
