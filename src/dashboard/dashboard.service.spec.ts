@@ -40,7 +40,7 @@ describe('DashboardService', () => {
   });
 
   it('retorna estrutura correta com contagens zeradas', async () => {
-    const result = await service.getMetrics(1, false);
+    const result = await service.getMetrics({ companyId: 1, isMaster: false });
 
     expect(result.totalInfractions).toBe(10);
     expect(result.byStatus).toMatchObject({
@@ -65,12 +65,19 @@ describe('DashboardService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
 
-    const result = await service.getMetrics(1, false);
+    const result = await service.getMetrics({ companyId: 1, isMaster: false });
     expect(result.approvalRate).toBe(50);
   });
 
   it('não aplica filtro de companyId quando isMaster=true', async () => {
-    await service.getMetrics(99, true);
+    await service.getMetrics({ companyId: null, isMaster: true });
+    expect(qb.where).not.toHaveBeenCalled();
+  });
+
+  it('non-master sem companyId → 403 (defesa do helper)', async () => {
+    await expect(
+      service.getMetrics({ companyId: null, isMaster: false }),
+    ).rejects.toThrow(/empresa/i);
     expect(qb.where).not.toHaveBeenCalled();
   });
 });

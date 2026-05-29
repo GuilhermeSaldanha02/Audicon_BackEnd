@@ -16,6 +16,10 @@ import { AuditService, Actor } from 'src/audit/audit.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { PaginatedResult } from 'src/common/dto/paginated-result.dto';
 import { CsvExportQueryDto } from './dto/csv-export-query.dto';
+import {
+  assertTenantScope,
+  TenantUser,
+} from 'src/common/helpers/assert-tenant-scope';
 @Injectable()
 export class InfractionsService {
   constructor(
@@ -70,10 +74,10 @@ export class InfractionsService {
   }
   async findAll(
     pagination: PaginationDto,
-    unitId?: number,
-    requesterCompanyId?: number | null,
-    isMaster = false,
+    unitId: number | undefined,
+    user: TenantUser,
   ): Promise<PaginatedResult<Infraction>> {
+    const scope = assertTenantScope(user);
     const { page, limit } = pagination;
     const qb = this.infractionsRepository
       .createQueryBuilder('i')
@@ -87,20 +91,17 @@ export class InfractionsService {
       await this.unitsService.findOne(unitId);
       qb.where('unit.id = :unitId', { unitId });
     }
-    if (!isMaster && requesterCompanyId) {
+    if (scope.companyId !== null) {
       qb.andWhere('condo.companyId = :companyId', {
-        companyId: requesterCompanyId,
+        companyId: scope.companyId,
       });
     }
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total, page, limit };
   }
-  async exportCsv(
-    query: CsvExportQueryDto,
-    requesterCompanyId?: number | null,
-    isMaster = false,
-  ): Promise<string> {
+  async exportCsv(query: CsvExportQueryDto, user: TenantUser): Promise<string> {
+    const scope = assertTenantScope(user);
     const qb = this.infractionsRepository
       .createQueryBuilder('i')
       .leftJoinAndSelect('i.unit', 'unit')
@@ -119,9 +120,9 @@ export class InfractionsService {
     if (query.to) {
       qb.andWhere('i.occurrenceDate <= :to', { to: query.to });
     }
-    if (!isMaster && requesterCompanyId) {
+    if (scope.companyId !== null) {
       qb.andWhere('condo.companyId = :companyId', {
-        companyId: requesterCompanyId,
+        companyId: scope.companyId,
       });
     }
 

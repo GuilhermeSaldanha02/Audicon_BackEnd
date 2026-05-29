@@ -76,10 +76,7 @@ describe('CondominiumsController', () => {
     service.findAll.mockResolvedValue(paginated);
     const result = await controller.findAll(mockActor, pagination);
     expect(result).toEqual(paginated);
-    expect(service.findAll).toHaveBeenCalledWith(
-      pagination,
-      mockActor.companyId,
-    );
+    expect(service.findAll).toHaveBeenCalledWith(pagination, mockActor);
   });
 
   it('findOne deve delegar para o service com id numérico', async () => {

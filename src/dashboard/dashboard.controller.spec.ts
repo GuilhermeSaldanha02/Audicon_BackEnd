@@ -25,17 +25,17 @@ describe('DashboardController', () => {
     controller = module.get(DashboardController);
   });
 
-  it('chama getMetrics com companyId e isMaster do token', async () => {
-    const req = { user: { companyId: 1, isMaster: false } };
-    const result = await controller.getMetrics(req);
+  it('chama getMetrics com o user inteiro do request', async () => {
+    const user = { companyId: 1, isMaster: false };
+    const result = await controller.getMetrics({ user });
 
-    expect(service.getMetrics).toHaveBeenCalledWith(1, false);
+    expect(service.getMetrics).toHaveBeenCalledWith(user);
     expect(result).toBe(mockResult);
   });
 
-  it('passa isMaster=true para master', async () => {
-    const req = { user: { companyId: null, isMaster: true } };
-    await controller.getMetrics(req);
-    expect(service.getMetrics).toHaveBeenCalledWith(null, true);
+  it('passa o user master para o service', async () => {
+    const user = { companyId: null, isMaster: true };
+    await controller.getMetrics({ user });
+    expect(service.getMetrics).toHaveBeenCalledWith(user);
   });
 });

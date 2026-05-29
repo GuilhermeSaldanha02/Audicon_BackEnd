@@ -64,12 +64,7 @@ export class InfractionsController {
   @Get()
   findAll(@CurrentActor() actor: Actor, @Query() query: InfractionQueryDto) {
     const { unitId, ...pagination } = query;
-    return this.infractionsService.findAll(
-      pagination,
-      unitId,
-      actor.companyId,
-      actor.isMaster,
-    );
+    return this.infractionsService.findAll(pagination, unitId, actor);
   }
 
   @ApiOperation({ summary: 'Exportar infrações em CSV (sem paginação)' })
@@ -84,11 +79,7 @@ export class InfractionsController {
     @Query() query: CsvExportQueryDto,
     @Res() res: Response,
   ) {
-    const csv = await this.infractionsService.exportCsv(
-      query,
-      actor.companyId,
-      actor.isMaster,
-    );
+    const csv = await this.infractionsService.exportCsv(query, actor);
     res.set({
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': 'attachment; filename=infractions.csv',

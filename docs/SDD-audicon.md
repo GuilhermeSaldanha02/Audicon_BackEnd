@@ -140,9 +140,21 @@ AuditLog N (independente; entries com userId, companyId, action, entity, entityI
 | `CompanyAdminGuard` | `/companies/me/users/*` | User tem membership ADMIN em pelo menos um condomínio da empresa |
 | `InfractionAccessGuard` | `/infractions/:id/*` e `/infractions/:id/images/*` | Infraction.unit.condominium.companyId === user.companyId (master bypassa) |
 
-**Multi-tenant isolation** acontece em dois lugares:
-- **Guards** validam acesso por ID em rotas `/:id/*`
-- **Services** filtram listas por `companyId` (CondominiumsService.findAll, InfractionsService.findAll)
+**Padrão de isolamento de tenant** (R-05 — obrigatório para toda rota nova):
+
+| Tipo de rota | Mecanismo | Exemplo |
+|---|---|---|
+| `/:id` e subrotas | Guard dedicado que resolve `companyId` via entity lookup | `InfractionAccessGuard`, `CondominiumAccessGuard` |
+| Listagem / agregação | `assertTenantScope(user)` no service antes de qualquer query | `CondominiumsService.findAll`, `InfractionsService.findAll`, `DashboardService.getMetrics`, `AuditService.list` |
+| Rotas exclusivas do master | `MasterGuard` na rota; nenhum filtro adicional necessário | `POST /companies`, `DELETE /companies/:id` |
+
+**`assertTenantScope(user, opts?)`** — helper em `src/common/helpers/assert-tenant-scope.ts`:
+- Non-master com `companyId` válido → retorna `{ companyId, isMaster: false }` → service aplica `WHERE companyId = X`
+- Non-master sem `companyId` válido → lança `ForbiddenException` (defesa contra estado inválido — `User.companyId` é nullable para o master; nenhum non-master deveria ter null, mas o schema não enforça NOT NULL)
+- Master sem override → retorna `{ companyId: null, isMaster: true }` → service omite o `WHERE` (vê tudo)
+- Master com override → retorna `{ companyId: override, isMaster: true }` → filtrado como non-master
+
+**Anti-padrão proibido:** `if (!isMaster && companyId) { qb.where(...) }` — silently permissive: se um non-master tiver `companyId = null`, a query roda sem filtro e vaza dados de todas as empresas. Use sempre `assertTenantScope`.
 
 ### 3.4 Padrões transversais
 
@@ -150,7 +162,8 @@ AuditLog N (independente; entries com userId, companyId, action, entity, entityI
 - **ResponseInterceptor** — envelopa sucesso em `{ statusCode, data }`.
 - **ValidationPipe global** com `whitelist: true` + `forbidNonWhitelisted: true`.
 - **AuditService.log(actor, action, entity, entityId, context)** — fire-and-forget, instrumentado em 9 pontos críticos.
-- **Actor pattern**: controllers constroem `Actor = { userId, email, isMaster, companyId }` via helper `toActor(req)` e passam aos services. Sem AsyncLocalStorage.
+- **Actor pattern**: controllers constroem `Actor = { userId, email, isMaster, companyId }` via decorator `@CurrentActor()` e passam aos services. Sem AsyncLocalStorage.
+- **`assertTenantScope`** — ver §3.3. Toda rota de listagem/agregação DEVE chamar este helper antes de qualquer query.
 
 Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos paralelos de resposta.
 
@@ -217,6 +230,8 @@ Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos parale
 | T-RST-01 | Reset de senha (admin reseta funcionário; master reseta admin — PR #36) | ✅ |
 | T-CSV-01 | Exportação CSV de infrações filtradas (`GET /infractions/export` — PR #37) | ✅ |
 | T-DASH-01 | Dashboard de métricas (totais, status, mês, top reincidentes, taxa aprovação — PR #38) | ✅ |
+| R-02 | `SystemRole` enum por empresa (GERENTE/FUNCIONARIO) — PR #52 | ✅ |
+| R-05 | `assertTenantScope` helper + hardening de isolamento de tenant em 5 pontos — PR #54 | ✅ |
 
 ### 5.2 Pendente
 

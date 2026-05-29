@@ -22,9 +22,6 @@ export class DashboardController {
   @ApiResponse({ status: 200, description: 'Métricas do dashboard' })
   @Get()
   getMetrics(@Request() req: any) {
-    return this.dashboardService.getMetrics(
-      req.user.companyId,
-      !!req.user.isMaster,
-    );
+    return this.dashboardService.getMetrics(req.user);
   }
 }

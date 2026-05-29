@@ -1,11 +1,4 @@
-import {
-  Controller,
-  ForbiddenException,
-  Get,
-  Query,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -16,6 +9,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuditService } from './audit.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { assertTenantScope } from '../common/helpers/assert-tenant-scope';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Min } from 'class-validator';
 
@@ -48,23 +42,9 @@ export class AuditController {
   @Get()
   async list(@Request() req: any, @Query() query: AuditQueryDto) {
     const { page, limit, companyId: requestedCompanyId } = query;
-    const isMaster = !!req.user.isMaster;
-    const userCompanyId = req.user.companyId ?? null;
-
-    let scope: number | null;
-    if (isMaster) {
-      // Master pode filtrar por companyId opcionalmente; sem filtro vê todos
-      scope = requestedCompanyId ?? null;
-    } else {
-      if (!userCompanyId) {
-        throw new ForbiddenException(
-          'Usuário sem empresa associada não pode acessar audit log.',
-        );
-      }
-      // Non-master ignora requestedCompanyId — sempre da própria empresa
-      scope = userCompanyId;
-    }
-
-    return this.auditService.list({ companyId: scope, page, limit });
+    const scope = assertTenantScope(req.user, {
+      masterOverrideCompanyId: requestedCompanyId ?? null,
+    });
+    return this.auditService.list({ companyId: scope.companyId, page, limit });
   }
 }

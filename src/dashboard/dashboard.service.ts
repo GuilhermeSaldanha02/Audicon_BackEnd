@@ -5,6 +5,10 @@ import {
   Infraction,
   InfractionStatus,
 } from '../infractions/entities/infraction.entity';
+import {
+  assertTenantScope,
+  TenantUser,
+} from '../common/helpers/assert-tenant-scope';
 
 export interface DashboardResult {
   totalInfractions: number;
@@ -26,17 +30,18 @@ export class DashboardService {
     private readonly repo: Repository<Infraction>,
   ) {}
 
-  async getMetrics(
-    companyId?: number | null,
-    isMaster = false,
-  ): Promise<DashboardResult> {
+  async getMetrics(user: TenantUser): Promise<DashboardResult> {
+    const scope = assertTenantScope(user);
+
     const base = this.repo
       .createQueryBuilder('i')
       .leftJoin('i.unit', 'unit')
       .leftJoin('unit.condominium', 'condo');
 
-    if (!isMaster && companyId) {
-      base.where('condo.companyId = :companyId', { companyId });
+    if (scope.companyId !== null) {
+      base.where('condo.companyId = :companyId', {
+        companyId: scope.companyId,
+      });
     }
 
     const [totalInfractions, byStatusRows, byMonthRows, topUnitsRows] =

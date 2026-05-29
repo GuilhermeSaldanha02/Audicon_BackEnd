@@ -12,6 +12,10 @@ import { UpdateCondominiumDto } from './dto/update-condominium.dto';
 import { AuditService, Actor } from '../audit/audit.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResult } from '../common/dto/paginated-result.dto';
+import {
+  assertTenantScope,
+  TenantUser,
+} from '../common/helpers/assert-tenant-scope';
 
 @Injectable()
 export class CondominiumsService {
@@ -49,12 +53,13 @@ export class CondominiumsService {
 
   async findAll(
     pagination: PaginationDto,
-    companyId?: number | null,
+    user: TenantUser,
   ): Promise<PaginatedResult<Condominium>> {
+    const scope = assertTenantScope(user);
     const { page, limit } = pagination;
     const qb = this.condominiumsRepository.createQueryBuilder('c');
-    if (companyId) {
-      qb.where('c.companyId = :companyId', { companyId });
+    if (scope.companyId !== null) {
+      qb.where('c.companyId = :companyId', { companyId: scope.companyId });
     }
     const [data, total] = await qb
       .skip((page - 1) * limit)

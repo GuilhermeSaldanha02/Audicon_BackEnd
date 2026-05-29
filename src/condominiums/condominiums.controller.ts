@@ -67,7 +67,7 @@ export class CondominiumsController {
   })
   @Get()
   findAll(@CurrentActor() actor: Actor, @Query() pagination: PaginationDto) {
-    return this.condominiumsService.findAll(pagination, actor.companyId);
+    return this.condominiumsService.findAll(pagination, actor);
   }
 
   @ApiOperation({ summary: 'Buscar condomínio por ID' })
