@@ -131,7 +131,12 @@ function makeFilteringQb<T extends { companyId?: number | null }>(
     }),
     getRawMany: jest.fn().mockResolvedValue([]),
   };
-  return { qb, resetFilter: () => { filterCompanyId = undefined; } };
+  return {
+    qb,
+    resetFilter: () => {
+      filterCompanyId = undefined;
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -225,10 +230,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       };
 
       const module: TestingModule = await Test.createTestingModule({
-        imports: [
-          PassportModule,
-          JwtModule.register({ secret: JWT_SECRET }),
-        ],
+        imports: [PassportModule, JwtModule.register({ secret: JWT_SECRET })],
         controllers: [CondominiumsController],
         providers: [
           JwtStrategy,
