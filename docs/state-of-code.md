@@ -40,7 +40,7 @@ Maturidade por camada:
 - 🟡 JWT em `Authorization: Bearer` (não cookie httpOnly) — T-07 do SDD **não** implementado.
 
 ### 2.2 `UsersModule` — 🟡
-- **Entidade** [user.entity.ts](../src/users/entities/user.entity.ts): `id`, `nome`, `email` (unique), `senha`, `isMaster` (bool), `mustChangePassword` (bool), `company`/`companyId` (nullable — master tem nulo), `memberships: UserCondominium[]`. Hash via `@BeforeInsert`.
+- **Entidade** [user.entity.ts](../src/users/entities/user.entity.ts): `id`, `nome`, `email` (unique), `senha`, `isMaster` (bool), `mustChangePassword` (bool), `company`/`companyId` (**nullable no schema** — master tem `companyId = null` por design; a migration `AddCompanyAndMasterUser` não adicionou CHECK `(isMaster OR companyId IS NOT NULL)`, então o schema aceita non-master com null. O helper `assertTenantScope` compensa: lança 403 se um non-master chegar sem companyId válido), `memberships: UserCondominium[]`. Hash via `@BeforeInsert`.
 - **Service:** `create`, `findOneByEmail`, `findOneById`, `changePassword` (≥8 chars, limpa `mustChangePassword`), `getProfile`.
 - ⚠️ **R1 (segurança):** `POST /users` ([users.controller.ts](../src/users/users.controller.ts)) é **público, sem guard e sem checagem de papel** — qualquer um cria usuário (sem `companyId`, sem `isMaster`). A criação "correta" segue pelo `CompaniesController`. Ver §6.
 - 🟡 Sem `select: false`/`@Exclude()` na coluna `senha` (T-09/C10): a senha **não vaza** porque os fluxos deletam o campo manualmente (`delete result.senha`), mas a proteção não é estrutural.
@@ -196,8 +196,16 @@ Nenhum módulo é stub. Não há regressão de cobertura aparente (thresholds at
 
 ➡️ **Decisão necessária:** o SDD deve ser atualizado para o modelo real (papéis por condomínio + `isMaster`), **ou** o código deve ser renomeado para o vocabulário do SDD. O modelo real é mais granular e já está em produção; recomendo alinhar o SDD ao código, decidindo explicitamente o destino do papel `RESIDENT`.
 
-### 7.2 C9 (isolamento central) — **parcialmente diferente do prescrito**
-O SDD pede um mecanismo **único e central** (guard + query scope/interceptor), "nunca repetido manualmente por service". O código usa **guards dedicados** (`InfractionAccessGuard`, `CompanyAdminGuard`, `MasterGuard`) e, em vários services/dashboard, o filtro `companyId` é **passado como parâmetro** (`findAll(..., companyId, isMaster)`). Funciona e é testável, mas **não é um único query-scope central** — é uma divergência de implementação a registrar.
+### 7.2 C9 (isolamento central) — ✅ **resolvido em R-05 (PR #54)**
+
+O padrão `if (!isMaster && companyId) { qb.where(...) }` foi substituído pelo helper
+`assertTenantScope(user)` em todos os 5 pontos de listagem/agregação:
+`CondominiumsService.findAll`, `InfractionsService.findAll`, `InfractionsService.exportCsv`,
+`DashboardService.getMetrics`, `AuditController.list`.
+
+O helper centraliza a lógica e **lança 403** se um non-master não tiver `companyId` válido — eliminando
+o risco de vazamento silencioso que existia no padrão anterior (ver §3.3 do SDD para a
+especificação canônica do padrão).
 
 ### 7.3 Seed do master — **diverge de T-04 e §2.2**
 Hash bcrypt fixo na migration em vez de ler `MASTER_EMAIL`/`MASTER_PASSWORD`. Essas vars não estão no `env.schema`. (Ver §4, §6 R2.)
