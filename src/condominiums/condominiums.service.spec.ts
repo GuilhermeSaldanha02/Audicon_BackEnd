@@ -111,32 +111,42 @@ describe('CondominiumsService', () => {
 
   describe('findAll', () => {
     const pagination = { page: 1, limit: 20 };
+    const userA: any = { companyId: 7, isMaster: false };
+    const master: any = { companyId: null, isMaster: true };
 
     it('lista todos os condomínios da empresa do ator', async () => {
       const list = [{ id: 1 }, { id: 2 }];
       const qb = makeQb(list);
       condoRepo.createQueryBuilder.mockReturnValue(qb);
-      const result = await service.findAll(pagination, 7);
+      const result = await service.findAll(pagination, userA);
       expect(result).toEqual({ data: list, total: 2, page: 1, limit: 20 });
       expect(qb.where).toHaveBeenCalledWith('c.companyId = :companyId', {
         companyId: 7,
       });
     });
 
-    it('sem companyId (master) não aplica filtro de empresa', async () => {
+    it('master não aplica filtro de empresa', async () => {
       const list = [{ id: 1 }];
       const qb = makeQb(list, 1);
       condoRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll(pagination, null);
+      await service.findAll(pagination, master);
       expect(qb.where).not.toHaveBeenCalled();
     });
 
     it('aplica skip e take corretos para page 3', async () => {
       const qb = makeQb([]);
       condoRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll({ page: 3, limit: 10 }, 1);
+      await service.findAll({ page: 3, limit: 10 }, { ...userA, companyId: 1 });
       expect(qb.skip).toHaveBeenCalledWith(20);
       expect(qb.take).toHaveBeenCalledWith(10);
+    });
+
+    it('non-master sem companyId → 403 (defesa do helper)', async () => {
+      const qb = makeQb([]);
+      condoRepo.createQueryBuilder.mockReturnValue(qb);
+      await expect(
+        service.findAll(pagination, { companyId: null, isMaster: false }),
+      ).rejects.toThrow(/empresa/i);
     });
   });
 

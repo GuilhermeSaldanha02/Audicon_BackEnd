@@ -126,10 +126,12 @@ describe('InfractionsService', () => {
   });
   describe('findAll', () => {
     const pagination = { page: 1, limit: 20 };
+    const master: any = { companyId: null, isMaster: true };
+    const userA: any = { companyId: 1, isMaster: false };
 
-    it('retorna resultado paginado sem filtro', async () => {
+    it('master retorna resultado paginado sem filtro de empresa', async () => {
       qb.getManyAndCount.mockResolvedValue([[mockInfraction], 1]);
-      const result = await service.findAll(pagination);
+      const result = await service.findAll(pagination, undefined, master);
       expect(result).toEqual({
         data: [mockInfraction],
         total: 1,
@@ -137,12 +139,21 @@ describe('InfractionsService', () => {
         limit: 20,
       });
       expect(qb.where).not.toHaveBeenCalled();
+      expect(qb.andWhere).not.toHaveBeenCalled();
+    });
+
+    it('non-master aplica filtro de companyId', async () => {
+      qb.getManyAndCount.mockResolvedValue([[mockInfraction], 1]);
+      await service.findAll(pagination, undefined, userA);
+      expect(qb.andWhere).toHaveBeenCalledWith('condo.companyId = :companyId', {
+        companyId: 1,
+      });
     });
 
     it('filtra por unidade quando unitId fornecido', async () => {
       (units.findOne as jest.Mock).mockResolvedValue(mockInfraction.unit);
       qb.getManyAndCount.mockResolvedValue([[mockInfraction], 1]);
-      const result = await service.findAll(pagination, 10);
+      const result = await service.findAll(pagination, 10, master);
       expect(units.findOne).toHaveBeenCalledWith(10);
       expect(qb.where).toHaveBeenCalledWith('unit.id = :unitId', {
         unitId: 10,
@@ -152,16 +163,25 @@ describe('InfractionsService', () => {
 
     it('lança NotFoundException quando unitId não existe', async () => {
       (units.findOne as jest.Mock).mockRejectedValue(new NotFoundException());
-      await expect(service.findAll(pagination, 999)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.findAll(pagination, 999, master),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('aplica skip e take corretos para page 2', async () => {
       qb.getManyAndCount.mockResolvedValue([[], 0]);
-      await service.findAll({ page: 2, limit: 10 });
+      await service.findAll({ page: 2, limit: 10 }, undefined, master);
       expect(qb.skip).toHaveBeenCalledWith(10);
       expect(qb.take).toHaveBeenCalledWith(10);
+    });
+
+    it('non-master sem companyId → 403 (defesa do helper)', async () => {
+      await expect(
+        service.findAll(pagination, undefined, {
+          companyId: null,
+          isMaster: false,
+        }),
+      ).rejects.toThrow(/empresa/i);
     });
   });
   describe('findOne', () => {
@@ -194,9 +214,11 @@ describe('InfractionsService', () => {
     });
   });
   describe('exportCsv', () => {
+    const userA: any = { companyId: 1, isMaster: false };
+
     it('retorna header + linha por infração', async () => {
       (qb.getMany as jest.Mock).mockResolvedValue([mockInfraction]);
-      const csv = await service.exportCsv({}, 1, false);
+      const csv = await service.exportCsv({}, userA);
       const lines = csv.split('\n');
       expect(lines[0]).toBe(
         'id,unidade,condominio,status,descricao,data_ocorrencia,aprovado_em,enviado_em',
@@ -207,10 +229,16 @@ describe('InfractionsService', () => {
 
     it('retorna só o header quando não há registros', async () => {
       (qb.getMany as jest.Mock).mockResolvedValue([]);
-      const csv = await service.exportCsv({}, 1, false);
+      const csv = await service.exportCsv({}, userA);
       expect(csv).toBe(
         'id,unidade,condominio,status,descricao,data_ocorrencia,aprovado_em,enviado_em',
       );
+    });
+
+    it('non-master sem companyId → 403 (defesa do helper)', async () => {
+      await expect(
+        service.exportCsv({}, { companyId: null, isMaster: false }),
+      ).rejects.toThrow(/empresa/i);
     });
   });
 

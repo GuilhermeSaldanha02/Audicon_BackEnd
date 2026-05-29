@@ -94,8 +94,7 @@ describe('InfractionsController', () => {
     expect(service.findAll).toHaveBeenCalledWith(
       { page: 1, limit: 20 },
       undefined,
-      1,
-      false,
+      mockActor,
     );
     expect(result).toEqual(paginated);
   });
@@ -107,8 +106,7 @@ describe('InfractionsController', () => {
     expect(service.findAll).toHaveBeenCalledWith(
       { page: 1, limit: 20 },
       10,
-      1,
-      false,
+      mockActor,
     );
     expect(result).toEqual(paginated);
   });
@@ -118,11 +116,7 @@ describe('InfractionsController', () => {
     const res: any = { set: jest.fn(), end: jest.fn() };
     const query: any = {};
     await controller.exportCsv(mockActor, query, res);
-    expect(service.exportCsv).toHaveBeenCalledWith(
-      query,
-      mockActor.companyId,
-      mockActor.isMaster,
-    );
+    expect(service.exportCsv).toHaveBeenCalledWith(query, mockActor);
     expect(res.set).toHaveBeenCalledWith({
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': 'attachment; filename=infractions.csv',
