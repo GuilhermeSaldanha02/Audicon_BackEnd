@@ -20,8 +20,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('Token inválido.');
     }
-    const result: any = { ...(user as any) };
-    delete result.senha;
-    return result;
+    // findOneById não faz addSelect da senha (select:false na entity), então
+    // req.user já vem sem o hash — sem necessidade de delete manual (R-07).
+    return user;
   }
 }

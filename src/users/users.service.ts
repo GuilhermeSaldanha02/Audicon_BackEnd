@@ -19,9 +19,14 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
   async findOneByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOne({
-      where: { email },
-    }) as Promise<User | null>;
+    // senha é select:false na entity; o login precisa do hash para o bcrypt,
+    // então a re-incluímos explicitamente via addSelect (QueryBuilder, pois o
+    // `select` das FindOptions é whitelist e descartaria as demais colunas).
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.senha')
+      .where('user.email = :email', { email })
+      .getOne();
   }
   async findOneById(id: number): Promise<User | undefined> {
     return this.usersRepository.findOneBy({ id });
