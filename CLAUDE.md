@@ -24,6 +24,14 @@ Nunca implemente sem plano aprovado. Nunca faça auto-merge.
 - Commits em Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`)
 - PRs referenciam o ID da tarefa do SDD (ex.: `T-06`)
 
+## Pre-commit hook
+
+`husky` + `lint-staged` rodam automaticamente no `git commit`. O hook aplica `prettier --write` e `eslint --fix` nos arquivos staged; se o ESLint ainda reportar erros após o `--fix`, o commit é bloqueado.
+
+O hook roda via `node_modules` local, não dentro do Docker. Isso é intencional: a paridade de versão é garantida pelo lockfile (`prettier` fixado em `3.6.2` exato no `package.json`), e wrappers para converter paths do host para o container são frágeis entre plataformas. Docker continua sendo o ambiente padrão para execução de código da aplicação (testes, migrations, runtime) — o hook é ferramenta de qualidade pré-commit, não execução de aplicação.
+
+Para pular intencionalmente (merge de emergência, WIP): `git commit --no-verify`. Use com consciência — o CI ainda vai barrar se o lint falhar.
+
 ## Comandos essenciais
 
 ```bash
