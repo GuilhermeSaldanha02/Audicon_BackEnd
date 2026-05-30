@@ -10,6 +10,7 @@ describe('UsersService', () => {
     save: jest.Mock;
     findOne: jest.Mock;
     findOneBy: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   beforeEach(async () => {
     repository = {
@@ -17,6 +18,7 @@ describe('UsersService', () => {
       save: jest.fn(),
       findOne: jest.fn(),
       findOneBy: jest.fn(),
+      createQueryBuilder: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -53,17 +55,29 @@ describe('UsersService', () => {
     });
   });
   describe('findOneByEmail', () => {
-    it('deve retornar usuário quando encontrado', async () => {
-      const user = { id: 1, email: 'john@example.com' } as any;
-      repository.findOne.mockResolvedValue(user);
+    it('seleciona a senha via addSelect e retorna o usuário', async () => {
+      const user = { id: 1, email: 'john@example.com', senha: 'hash' } as any;
+      const qb = {
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(user),
+      };
+      repository.createQueryBuilder.mockReturnValue(qb);
       const result = await service.findOneByEmail('john@example.com');
       expect(result).toEqual(user);
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { email: 'john@example.com' },
+      expect(repository.createQueryBuilder).toHaveBeenCalledWith('user');
+      expect(qb.addSelect).toHaveBeenCalledWith('user.senha');
+      expect(qb.where).toHaveBeenCalledWith('user.email = :email', {
+        email: 'john@example.com',
       });
     });
     it('deve retornar null quando não encontrado', async () => {
-      repository.findOne.mockResolvedValue(null);
+      const qb = {
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      repository.createQueryBuilder.mockReturnValue(qb);
       const result = await service.findOneByEmail('missing@example.com');
       expect(result).toBeNull();
     });
