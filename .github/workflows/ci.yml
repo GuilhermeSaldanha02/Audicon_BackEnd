@@ -36,6 +36,12 @@ jobs:
       JWT_SECRET: ci-secret-must-be-at-least-16-chars
       JWT_EXPIRATION: 1h
       CORS_ORIGINS: http://localhost:4173
+      # Credenciais descartáveis para o seed do Master no banco efêmero do CI.
+      # NÃO são template para .env de dev/prod — use senha forte gerada por você lá.
+      # Justificativa: GitHub Secrets seria exagero (sem risco real); essas senhas
+      # só dão acesso ao Postgres do job, destruído após cada run.
+      MASTER_EMAIL: ci-master@audicon.com
+      MASTER_PASSWORD: CiMaster!2026Seed
 
     steps:
       - name: Checkout
