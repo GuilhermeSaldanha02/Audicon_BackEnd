@@ -11,6 +11,8 @@ const validEnv = {
   JWT_SECRET: 'a-very-long-secret-string-1234',
   JWT_EXPIRATION: '3600s',
   CORS_ORIGINS: 'http://localhost:4173',
+  MASTER_EMAIL: 'master@audicon.com',
+  MASTER_PASSWORD: 'StrongMaster1!pass',
 };
 
 function validate(env: Record<string, unknown>) {
@@ -45,6 +47,8 @@ describe('envValidationSchema', () => {
     'JWT_SECRET',
     'JWT_EXPIRATION',
     'CORS_ORIGINS',
+    'MASTER_EMAIL',
+    'MASTER_PASSWORD',
   ])('rejects when required variable %s is missing', (varName) => {
     const env = { ...validEnv };
     delete (env as any)[varName];
@@ -162,5 +166,70 @@ describe('envValidationSchema', () => {
     const env = { ...validEnv, RANDOM_THING: 'whatever' };
     const { error } = validate(env);
     expect(error).toBeUndefined();
+  });
+
+  describe('MASTER_EMAIL', () => {
+    it('rejects a malformed email', () => {
+      const env = { ...validEnv, MASTER_EMAIL: 'not-an-email' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('MASTER_EMAIL');
+    });
+
+    it('accepts a valid email', () => {
+      const env = { ...validEnv, MASTER_EMAIL: 'admin@example.com' };
+      const { error } = validate(env);
+      expect(error).toBeUndefined();
+    });
+  });
+
+  describe('MASTER_PASSWORD', () => {
+    it('accepts a password meeting all rules', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'StrongPass1!' };
+      const { error } = validate(env);
+      expect(error).toBeUndefined();
+    });
+
+    it('rejects a password shorter than 12 characters', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'Ab1!efg' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('MASTER_PASSWORD');
+    });
+
+    it('rejects a password without an uppercase letter', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'nouppercase1!' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('MASTER_PASSWORD');
+    });
+
+    it('rejects a password without a lowercase letter', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'NOLOWERCASE1!' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('MASTER_PASSWORD');
+    });
+
+    it('rejects a password without a digit', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'NoDigitHere!!' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('MASTER_PASSWORD');
+    });
+
+    it('rejects a password without a symbol', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'NoSymbolHere1' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toContain('MASTER_PASSWORD');
+    });
+
+    it('includes a human-readable message on pattern failure', () => {
+      const env = { ...validEnv, MASTER_PASSWORD: 'nosymbolhere1' };
+      const { error } = validate(env);
+      expect(error).toBeDefined();
+      expect(error!.message).toMatch(/uppercase|lowercase|number|symbol/i);
+    });
   });
 });

@@ -74,7 +74,19 @@ Adicionar membros: `POST /condominiums/:id/members` (requer ADMIN).
 
 ## Variáveis de ambiente
 
-Ver `.env.example` na raiz. Obrigatórias: `DB_*`, `JWT_SECRET` (min 16 chars), `JWT_EXPIRATION`, `CORS_ORIGINS`. Opcionais: `GEMINI_API_KEY`, `GEMINI_*`, `LOG_LEVEL`, `GEMINI_TIMEOUT_MS`.
+Ver `.env.example` na raiz. Obrigatórias: `DB_*`, `JWT_SECRET` (min 16 chars), `JWT_EXPIRATION`, `CORS_ORIGINS`, `MASTER_EMAIL`, `MASTER_PASSWORD`. Opcionais: `GEMINI_API_KEY`, `GEMINI_*`, `LOG_LEVEL`, `GEMINI_TIMEOUT_MS`.
+
+### Setup inicial do Master
+
+O usuário Master (acesso global, sem tenant) é criado **uma única vez** pela migration de seed `SeedMasterFromEnv`. Antes de rodar `migration:run` pela primeira vez em um novo ambiente:
+
+1. Gere uma senha forte: `openssl rand -base64 18` (ajuste para incluir maiúscula, minúscula, número e símbolo — requisito mínimo 12 chars).
+2. Preencha `MASTER_EMAIL` e `MASTER_PASSWORD` no `.env`.
+3. Rode `npm run migration:run` (dentro do Docker conforme C13).
+
+O seed é idempotente: se já existir qualquer usuário com `isMaster = true`, ele pula sem erro. Trocar e-mail ou senha do Master após a criação é operação administrativa manual (via SQL direto ou endpoint futuro) — a migration não sobrescreve.
+
+`MASTER_PASSWORD` é a chave-mestra do sistema. Nunca commitar, nunca reutilizar.
 
 ## Pontos de atenção
 
@@ -158,11 +170,8 @@ Next.js 15 + React 19 + shadcn/ui (`@base-ui/react`) + Tailwind + TanStack Query
 
 ## Master de dev
 
-```
-email: master@audicon.com
-senha: MasterAudicon@2026
-```
+Credenciais via `MASTER_EMAIL` / `MASTER_PASSWORD` no `.env` — ver seção "Setup inicial do Master" acima.
 
-Criado via migration em `1779235200000-AddCompanyAndMasterUser`. **Trocar em produção.**
+Em ambientes criados antes do R-06 (migration `AddCompanyAndMasterUser`), existe um Master com hash fixo versionado no histórico git. A senha desse Master precisa ser rotacionada manualmente em produção — operação administrativa fora do escopo do R-06.
 
 Quando o backend evoluir (imagens, multi-tenant, notificações), o frontend integra incrementalmente.

@@ -15,6 +15,20 @@ export const envValidationSchema = Joi.object({
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRATION: Joi.string().required(),
 
+  // Master (system owner) credentials. Consumed by the SeedMasterFromEnv
+  // migration; required at boot too so the master-key is never silently
+  // missing. MASTER_PASSWORD must be strong: min 12 chars with uppercase,
+  // lowercase, number and symbol.
+  MASTER_EMAIL: Joi.string().email().required(),
+  MASTER_PASSWORD: Joi.string()
+    .min(12)
+    .pattern(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/)
+    .required()
+    .messages({
+      'string.pattern.base':
+        'MASTER_PASSWORD must contain an uppercase letter, a lowercase letter, a number and a symbol.',
+    }),
+
   CORS_ORIGINS: Joi.string().required(),
 
   GEMINI_API_KEY: Joi.string().optional(),
