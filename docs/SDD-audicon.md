@@ -1,410 +1,210 @@
-# SDD — Audicon API
+# SDD — Audicon (Backend + Web)
 **Spec-Driven Development Document**
-Versão: 2.0 · Última atualização: 2026-05-18
+Versão: 3.0 · Última atualização: 2026-05-30
+Substitui a v2.0 e canoniza o backlog R-xx que vinha vivendo só em conversas e Discoveries.
 
 ---
 
 ## 0. Como ler este documento
 
-Este SDD é a **fonte única de verdade** para a continuidade do projeto Audicon. Toda decisão de implementação deve referenciar uma seção deste documento. Quando a especificação for ambígua, o agente (humano ou IA) **deve parar e pedir esclarecimento**, nunca improvisar.
+Fonte única de verdade para a continuidade do Audicon — `Audicon_BackEnd` e `Audicon_Web`. Conflito entre um pedido e o SDD → o agente **para e pergunta**, não improvisa.
 
-Estrutura:
-- §1–§3 → contexto invariável (não alterar sem revisão arquitetural)
-- §4 → convenções obrigatórias (gates de PR)
-- §5 → backlog priorizado (a parte que evolui)
-- §6 → critérios de aceitação e Definition of Done
-- §7 → glossário e referências
+**O que mudou da v2.0 para a v3.0:**
+- A v2.0 foi escrita assumindo que quase tudo estava por fazer. Três Discoverys revelaram que o backend está muito avançado.
+- O plano deixa de ser "construir" e passa a ser **reconciliar** (alinhar o código real ao produto decidido).
+- O backlog R-xx (que vinha sendo usado em conversas e Discoveries mas não estava canonizado em lugar nenhum) agora vive aqui, em §5.
+- R-03 e R-04 originalmente separados foram **fundidos** (decisão tomada após o Discovery do RESIDENT).
+- Tarefas concluídas estão marcadas com ✅ e o número do PR mergeado.
 
----
-
-## 1. Contexto do Projeto
-
-**Audicon** é um **SaaS multi-tenant** para gestão de infrações em condomínios. Administradoras (empresas) usam o sistema para que seus funcionários registrem infrações por unidade, gerem documentos com auxílio de IA, e enviem o aviso ao morador por e-mail e/ou WhatsApp.
-
-**Hierarquia de tenancy:**
-```
-Master (Audicon)
-  ↓ cria empresas
-Company (Administradora)
-  ↓ tem funcionários
-User (funcionário com membership em condomínios)
-  ↓ gerencia
-Condominium → Unit → Morador (residentEmail/residentPhone)
-                      ↓ recebe
-                      Infraction (com imagens) → análise IA → aprovação humana → envio (e-mail + WhatsApp)
-```
-
-**Diferenciais técnicos:**
-- **Análise por IA contextual** (Google Gemini) considerando o regimento PDF do condomínio + histórico de reincidências da unidade
-- **Geração de PDF** com pdfkit (documento individual com imagens + relatório consolidado em stream)
-- **Notificação dual** ao morador: e-mail (Resend) com PDF anexo + WhatsApp (Z-API) como alerta
-- **Multi-tenant isolation** em duas camadas: filtro por `companyId` no banco + `InfractionAccessGuard` para acesso cross-tenant
-- **Audit log** de ações sensíveis com escopo por empresa
-
-**Forma de consumo atual:** API consumida por frontend Next.js 15 próprio (`Audicon_Web`). Existem clientes em produção (early adopters) — alterações de contrato exigem coordenação com o frontend.
+**Objetivo do projeto:** MVP para uso real com clientes. Meta da próxima entrega: sistema funcionando no padrão, publicado, para clientes-piloto testarem.
 
 ---
 
-## 2. Stack Técnica (fixa)
+## 1. Contexto
 
-### 2.1 Backend (`Audicon_BackEnd`)
+**Audicon** — SaaS B2B multi-tenant para gestão de infrações em condomínios, com análise por IA (Google Gemini) e geração de PDF. Vendido para **empresas de administração de condomínios**.
 
-| Camada | Tecnologia | Observação |
-|---|---|---|
-| Runtime | Node.js | **≥ 20** (fixado em `.nvmrc` e `package.json#engines`) |
-| Framework | NestJS 10 | Arquitetura modular |
-| Linguagem | TypeScript | `strict: true` |
-| Banco | PostgreSQL 16 | Em Docker (`audicon_db`) |
-| ORM | TypeORM 0.3 | `synchronize: false` — **nunca alterar** |
-| Auth | JWT (`@nestjs/passport`, `passport-jwt`, `passport-local`, `bcrypt`) | Claims: `sub`, `email`, `companyId`, `isMaster` |
-| IA | `@google/generative-ai` | `IaModule` — Gemini 2.5-flash, prompts versionados (v1/v2/v3) |
-| PDF | `pdfkit` | `PdfModule` — buffer + stream + embed de imagens |
-| E-mail | `resend` | `MailModule` — modo mock sem `RESEND_API_KEY` |
-| WhatsApp | Fetch direto Z-API | `WhatsappModule` — modo mock sem `ZAPI_*` |
-| Upload | `@nestjs/platform-express` (multer) | Imagens em bytea (PDF regimento também) |
-| Validação env | `joi` | Schema em `src/common/config/env.schema.ts` |
-| Logger | `nestjs-pino` | Logger estruturado |
-| Testes | Jest (unit + e2e + coverage) | Thresholds por módulo em `package.json#jest` |
-| Throttle | `@nestjs/throttler` | Global 100/min + override em `/infractions/:id/analyze` |
-| Containerização | Docker + docker-compose | `api` + `db` |
+**Repositórios:**
+- `Audicon_BackEnd` — NestJS / TypeScript / TypeORM / PostgreSQL. Muito avançado: 325+ unit tests, 24+ e2e, cobertura ~92% statements, módulos completos incluindo `companies`, `audit`, `dashboard`, `mail`, `whatsapp`, `notifications`, `health`.
+- `Audicon_Web` — Next.js 15 / React 19 / Tailwind 4 / shadcn. Menos avançado; a estrutura precisa ser construída sobre a fundação reconciliada.
 
-### 2.2 Frontend (`Audicon_Web`)
-
-| Camada | Tecnologia |
-|---|---|
-| Framework | Next.js 15 (App Router) |
-| UI | React 19 + shadcn/ui (`@base-ui/react`) + Tailwind CSS |
-| Estado servidor | TanStack Query 5 |
-| Forms | React Hook Form + Zod |
-| HTTP | axios |
-| Notifications | sonner (toasts) |
-
-**Restrições inegociáveis:**
-- Não usar bibliotecas alternativas para os papéis acima sem justificativa registrada em ADR.
-- Não habilitar `synchronize: true` em hipótese alguma — toda mudança de schema passa por migration.
-- Não commitar `.env`, chaves de API ou dumps de banco.
-- Nunca desabilitar o `ValidationPipe` global ou `forbidNonWhitelisted: true`.
+**Regra de produto fundamental:** o **morador NÃO tem acesso** ao sistema. Não existe perfil de morador/inquilino/condômino como usuário. O morador é objeto do sistema (a infração é registrada contra a unidade dele), nunca usuário dele.
 
 ---
 
-## 3. Arquitetura de Domínio
+## 2. Modelo de Acesso
 
-### 3.1 Mapa de módulos atual
+Multi-tenant: cada empresa-cliente é um tenant isolado; dados de uma empresa nunca são vistos por outra.
 
-```
-src/
-├── auth/            → AuthModule (JWT, login, JwtStrategy/LocalStrategy)
-├── users/           → UsersModule (CRUD users + UserCondominium membership)
-├── companies/       → CompaniesModule (master cria empresas + admin cria funcionários)
-├── condominiums/    → CondominiumsModule (CRUD condomínios + members + regimento PDF)
-├── units/           → UnitsModule (CRUD unidades, nested em condomínios)
-├── infractions/     → InfractionsModule (CRUD + analyze + approve + send + send-whatsapp + images)
-├── ia/              → IaModule (Gemini, prompts v1/v2/v3, extractRegimentoText via pdf-parse)
-├── pdf/             → PdfModule (pdfkit — documento individual com imagens + report stream)
-├── mail/            → MailModule (Resend; mock em dev/test sem RESEND_API_KEY)
-├── whatsapp/        → WhatsappModule (Z-API; mock em dev/test sem ZAPI_*)
-├── audit/           → AuditModule (log de ações sensíveis com escopo por empresa)
-├── health/          → HealthModule (/health/live + /health/ready)
-├── migrations/      → migrations TypeORM versionadas
-└── common/          → filters, interceptors, pipes, guards (RolesGuard, MasterGuard, CompanyAdminGuard, InfractionAccessGuard), enums, dto base, config
-```
+### 2.1 Hierarquia de papéis
 
-### 3.2 Entidades e relacionamentos
-
-```
-Company 1 ─── N User                  (user.companyId FK; nullable para master)
-Company 1 ─── N Condominium           (condo.companyId FK NOT NULL)
-
-User N ──── N Condominium  (via UserCondominium com role ADMIN/MANAGER/RESIDENT)
-
-Condominium 1 ─── N Unit
-Condominium 1 ─── 1 regimentoContent (bytea, select:false)
-
-Unit 1 ─── N Infraction
-Unit fields: identifier, ownerName, residentEmail, residentPhone
-
-Infraction 1 ─── N InfractionImage   (bytea, select:false; max 10/infração, 5MB cada)
-Infraction status: pending → analyzed → approved → sent
-Infraction fields: approvedAt, sentAt, whatsappSentAt (canal paralelo)
-
-AuditLog N (independente; entries com userId, companyId, action, entity, entityId, context jsonb)
-```
-
-### 3.3 Guards e controle de acesso
-
-| Guard | Onde | O que valida |
-|---|---|---|
-| `JwtAuthGuard` | Quase tudo | Token JWT válido |
-| `RolesGuard` | `/condominiums/:id/members`, edição/remoção de condomínio | `@Roles(...)` por membership |
-| `MasterGuard` | `/companies/*` | `user.isMaster === true` |
-| `CompanyAdminGuard` | `/companies/me/users/*` | User tem membership ADMIN em pelo menos um condomínio da empresa |
-| `InfractionAccessGuard` | `/infractions/:id/*` e `/infractions/:id/images/*` | Infraction.unit.condominium.companyId === user.companyId (master bypassa) |
-
-**Padrão de isolamento de tenant** (R-05 — obrigatório para toda rota nova):
-
-| Tipo de rota | Mecanismo | Exemplo |
-|---|---|---|
-| `/:id` e subrotas | Guard dedicado que resolve `companyId` via entity lookup | `InfractionAccessGuard`, `CondominiumAccessGuard` |
-| Listagem / agregação | `assertTenantScope(user)` no service antes de qualquer query | `CondominiumsService.findAll`, `InfractionsService.findAll`, `DashboardService.getMetrics`, `AuditService.list` |
-| Rotas exclusivas do master | `MasterGuard` na rota; nenhum filtro adicional necessário | `POST /companies`, `DELETE /companies/:id` |
-
-**`assertTenantScope(user, opts?)`** — helper em `src/common/helpers/assert-tenant-scope.ts`:
-- Non-master com `companyId` válido → retorna `{ companyId, isMaster: false }` → service aplica `WHERE companyId = X`
-- Non-master sem `companyId` válido → lança `ForbiddenException` (defesa contra estado inválido — `User.companyId` é nullable para o master; nenhum non-master deveria ter null, mas o schema não enforça NOT NULL)
-- Master sem override → retorna `{ companyId: null, isMaster: true }` → service omite o `WHERE` (vê tudo)
-- Master com override → retorna `{ companyId: override, isMaster: true }` → filtrado como non-master
-
-**Anti-padrão proibido:** `if (!isMaster && companyId) { qb.where(...) }` — silently permissive: se um non-master tiver `companyId = null`, a query roda sem filtro e vaza dados de todas as empresas. Use sempre `assertTenantScope`.
-
-### 3.4 Padrões transversais
-
-- **HttpExceptionFilter customizado** — normaliza erros.
-- **ResponseInterceptor** — envelopa sucesso em `{ statusCode, data }`.
-- **ValidationPipe global** com `whitelist: true` + `forbidNonWhitelisted: true`.
-- **AuditService.log(actor, action, entity, entityId, context)** — fire-and-forget, instrumentado em 9 pontos críticos.
-- **Actor pattern**: controllers constroem `Actor = { userId, email, isMaster, companyId }` via decorator `@CurrentActor()` e passam aos services. Sem AsyncLocalStorage.
-- **`assertTenantScope`** — ver §3.3. Toda rota de listagem/agregação DEVE chamar este helper antes de qualquer query.
-
-Qualquer nova rota **deve respeitar** esses padrões. Não criar formatos paralelos de resposta.
-
-### 3.5 Hierarquia de papéis (RBAC)
-
-| Papel | Escopo | Pode |
-|---|---|---|
-| **Master** (`isMaster=true`) | Global | Criar empresas, ver audit de tudo, bypassa isolation |
-| **ADMIN** (de condomínio, em UserCondominium) | Por condomínio | Editar condomínio, adicionar/remover membros, criar funcionários da empresa via `/companies/me/users` |
-| **MANAGER** | Por condomínio | Operar infrações no condomínio (criar, analisar, aprovar, enviar) |
-| **RESIDENT** | Por condomínio | Histórico — não usado pelo frontend atual (moradores não logam, recebem por e-mail/WhatsApp) |
-
-> Funcionário pode ser ADMIN em um condomínio e MANAGER em outro da mesma empresa.
-
----
-
-## 4. Convenções obrigatórias (gates de PR)
-
-| # | Regra | Justificativa |
-|---|---|---|
-| C1 | Toda rota nova tem DTO de entrada com `class-validator` | ValidationPipe já está global |
-| C2 | Toda resposta passa pelo `ResponseInterceptor` (não retornar shape paralelo) | Contrato uniforme |
-| C3 | Toda exceção previsível usa `HttpException` (ou subclasses Nest) | Filtro normaliza |
-| C4 | Toda mudança de schema gera migration via `npm run migration:generate` | `synchronize: false` |
-| C5 | Nenhum segredo hard-coded — tudo via `ConfigService` | Pontos de melhoria do relatório |
-| C6 | Cobertura de testes não pode cair em PR | CI deve falhar se cair |
-| C7 | Commits seguem Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`) | Rastreabilidade |
-| C8 | PRs referenciam o ID da tarefa do backlog (ex.: `T-04`) | Rastreabilidade |
-
----
-
-## 5. Backlog
-
-> **Convenção:** cada tarefa tem `ID`, `Prioridade` (P0–P3) e `Status` (✅ done · 🔄 em andamento · ⏳ pending).
-
-### 5.1 Já entregue (resumo)
-
-| ID | Título | Status |
-|---|---|---|
-| T-00 | Discovery + state-of-code | ✅ |
-| T-01 | CORS dinâmico via ConfigService | ✅ |
-| T-02 | Eliminar fallbacks em data-source.ts | ✅ |
-| T-03 | Validação Joi do .env no bootstrap | ✅ |
-| T-04 | Fluxo de análise de infração via IA | ✅ |
-| T-05 | Geração de relatório PDF | ✅ |
-| T-06 | RBAC (UserCondominium + RolesGuard) | ✅ |
-| T-07 | Cobertura mínima por módulo no CI | ✅ |
-| T-08 | Logger estruturado (pino) | ✅ |
-| T-09 | Healthcheck (`@nestjs/terminus`) | ✅ |
-| T-10 | Dockerfile + docker-compose | ✅ |
-| T-11 | Pipeline CI (lint + test + coverage) | ✅ |
-| T-IA-01 | Regimento PDF por condomínio + IA contextual | ✅ |
-| T-IA-02 | Reincidências como contexto da IA (prompt v3) | ✅ |
-| T-AP-01 | Fluxo de aprovação humana (ANALYZED → APPROVED) | ✅ |
-| T-NT-01 | Envio por e-mail (Resend) com PDF anexo | ✅ |
-| T-NT-02 | Envio por WhatsApp (Z-API) — canal complementar | ✅ |
-| T-IMG-01 | Upload de imagens da infração (galeria + embed no PDF) | ✅ |
-| T-MT-01 | Multi-tenant foundation (Company + master) | ✅ |
-| T-MT-02 | Frontend master panel (/master/companies) | ✅ |
-| T-MT-03 | ADMIN cria funcionários da empresa (/companies/me/users) | ✅ |
-| T-MT-04 | Isolation de infrações por empresa (InfractionAccessGuard) | ✅ |
-| T-AUDIT-01 | Audit log com escopo por empresa (9 ações instrumentadas + UI /audit-log) | ✅ |
-| T-SD-01 | Soft delete (`deletedAt`) em Condominium/Unit/Infraction (PR #35) | ✅ |
-| T-RST-01 | Reset de senha (admin reseta funcionário; master reseta admin — PR #36) | ✅ |
-| T-CSV-01 | Exportação CSV de infrações filtradas (`GET /infractions/export` — PR #37) | ✅ |
-| T-DASH-01 | Dashboard de métricas (totais, status, mês, top reincidentes, taxa aprovação — PR #38) | ✅ |
-| R-02 | `SystemRole` enum por empresa (GERENTE/FUNCIONARIO) — PR #52 | ✅ |
-| R-05 | `assertTenantScope` helper + hardening de isolamento de tenant em 5 pontos — PR #54 | ✅ |
-
-### 5.2 Pendente
-
-| ID | Prioridade | Título | Esforço |
+| Papel | Quem cria | Escopo | Permissões |
 |---|---|---|---|
-| T-NH-01 | P3 | Histórico de notificações com status real (webhook Resend) | ~2 dias |
-| T-DOM-RESEND | P2 | Verificar domínio próprio no Resend (sair do sandbox) | config externa |
-| T-ZAPI-REAL | P2 | Criar conta Z-API + setar `ZAPI_*` em prod | config externa |
-| T-FRONT-MISC | P3 | Polishes: ordenação de colunas, filtros adicionais no audit | ad-hoc |
-| T-DOCS | P3 | Atualizar SDD/CLAUDE.md a cada release maior | contínuo |
+| **MASTER** | Migration de seed (sem tela) | Global | Tudo. Cria Empresas e o Gerente de cada uma. |
+| **GERENTE** | O Master | A própria empresa | Tudo na sua empresa: CRUD de condomínios, unidades, funcionários, infrações; IA; PDF. |
+| **FUNCIONÁRIO** | O Gerente | A própria empresa | Escrita só em **infrações**; leitura de condomínios e unidades. Atua em todos os condomínios da empresa (sem designação). Não cria/edita condomínio, unidade ou usuário. |
 
-### 5.3 Especificações antigas (referência histórica — T-00 a T-11)
+Papel mora em `User.role` (enum `SystemRole` — implementado no R-02). Trava de "um GERENTE por empresa" via índice único parcial no banco.
 
-> As T-00 a T-11 originais foram entregues. As especificações detalhadas estão no Git em PRs históricas (#1 a #22). Mantidas em forma resumida para preservar o registro do que foi feito antes da virada multi-tenant.
+### 2.2 Master
 
-#### Fase 0 — Discovery (obrigatória antes de qualquer implementação)
+Criado só por migration de seed. Não existe tela nem endpoint público que crie Master. O seed lê `MASTER_EMAIL` e `MASTER_PASSWORD` do ambiente (a fazer no R-06 — atualmente ainda usa hash bcrypt fixo da migration `AddCompanyAndMasterUser`). O Master loga pela tela comum; o papel no JWT libera acesso global. A senha do Master é a chave-mestra: forte, nunca commitada.
 
-#### T-00 · [P0 · Discovery] Inventário do estado real do código
-**Objetivo:** mapear o que de fato está implementado versus o que existe só como esqueleto.
+### 2.3 Isolamento de tenant
 
-**Critérios de aceitação:**
-- Gerar `docs/state-of-code.md` contendo, por módulo:
-  - Entidades existentes (com campos e relacionamentos reais lidos do código)
-  - Endpoints expostos (verbo + rota + DTO + guard)
-  - Services implementados vs. stubs
-  - Cobertura de testes atual (`npm run test:cov`)
-- Para `IaModule` e `PdfModule` especificamente: listar funções públicas, dependências externas configuradas (chaves de API esperadas), e indicar se há chamada real ou mock.
-- Não modificar código nesta fase. **Apenas leitura e documentação.**
-
-**DoD:** arquivo `docs/state-of-code.md` commitado em branch `discovery/state-of-code`, PR aberto para revisão humana.
+Padrão canônico (implementado no R-05):
+- **Rotas com `:id` de recurso de empresa** → `InfractionAccessGuard` ou `CondominiumAccessGuard` (resolvem `companyId` do recurso pelo `:id`).
+- **Rotas sem `:id` (lista/agregação)** → `assertTenantScope(req.user)` no controller, passa `scope.companyId` para o service, service condiciona o `WHERE`.
+- **Rotas master-only** → `MasterGuard` no controller.
+- **Anti-padrão proibido:** `if (!isMaster && companyId)` solto em service. Use o helper.
 
 ---
 
-### Fase 1 — Refatorações dos pontos fracos identificados no relatório
+## 3. Arquitetura
 
-#### T-01 · [P1 · Refactor] CORS dinâmico via ConfigService
-**Problema atual:** `app.enableCors({ origin: 'http://localhost:4173' })` hard-coded em `main.ts`.
+### 3.1 Backend — módulos
 
-**Critérios de aceitação:**
-- `CORS_ORIGINS` adicionado ao `.env.example` como string CSV (ex.: `http://localhost:4173,https://app.audicon.com.br`).
-- `main.ts` lê via `ConfigService`, faz split por vírgula, trim em cada item, e passa array para `enableCors`.
-- Se `CORS_ORIGINS` estiver vazio ou ausente, comportamento deve ser **falhar a inicialização com erro explícito** (não cair em fallback silencioso).
-- Adicionar teste e2e que faz preflight `OPTIONS` e verifica header `Access-Control-Allow-Origin`.
+Implementados em `master`: `auth`, `users`, `companies`, `condominiums`, `units`, `infractions`, `ia`, `pdf`, `health`, `audit`, `dashboard`, `notifications` (+ webhooks), `mail` (Resend), `whatsapp` (Z-API), `common`.
 
-**DoD:** PR mergeado, e2e passando, `.env.example` atualizado.
+Padrões transversais a manter: `HttpExceptionFilter`, `ResponseInterceptor` (envelope `{ statusCode, data }`), `ValidationPipe` global (`whitelist` + `forbidNonWhitelisted`).
 
----
+### 3.2 Frontend
 
-#### T-02 · [P1 · Refactor] Eliminar fallbacks em `data-source.ts`
-**Problema atual:** valores como `'postgres'` e `'audicon'` aparecem como fallback no `data-source.ts` usado pelas migrations.
+Next.js 15 (App Router), React 19, Tailwind 4, shadcn/ui, TanStack Query, axios, react-hook-form/zod. Identidade visual: navy `#0F172A` + CTA blue `#0369A1`, Plus Jakarta Sans. **Visual será refeito com Open Design depois** — portanto a estratégia atual é construir a **estrutura/lógica** (telas funcionais respeitando RBAC), e não polir o visual antes da remodelagem.
 
-**Critérios de aceitação:**
-- Substituir todos os fallbacks por validação estrita: se variável de ambiente faltar, lançar erro com nome da variável faltante.
-- Variáveis envolvidas (confirmadas na Discovery T-00): `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`.
-- Criar utilitário `requireEnv(name: string): string` em `src/common/config/` para reuso.
-- Atualizar `.env.example` listando todas as variáveis exigidas com comentário.
+### 3.3 Integração backend ↔ frontend
 
-**DoD:** rodar `npm run migration:run` sem `.env` deve falhar com mensagem clara; com `.env` correto, deve funcionar.
+Dev: backend 3000, frontend 3001, via `NEXT_PUBLIC_API_URL`. Contrato: backend tem Swagger/OpenAPI — frontend deve gerar tipos a partir dele (`openapi-typescript`). Prod: backend + Postgres gerenciado; frontend na Vercel; CORS por env.
 
 ---
 
-#### T-03 · [P2 · Refactor] Validação de schema do `.env` no bootstrap
-**Objetivo:** prevenir start da aplicação com configuração inválida.
+## 4. Convenções obrigatórias
 
-**Critérios de aceitação:**
-- Usar `Joi` (já comum em Nest) ou `zod` para validar `process.env` no `ConfigModule.forRoot({ validationSchema })`.
-- Schema cobre: variáveis de DB (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`), `JWT_SECRET`, `JWT_EXPIRATION` (confirmado na Discovery T-00 — código real usa `JWT_EXPIRATION`, não `JWT_EXPIRES_IN`), `CORS_ORIGINS`, `GEMINI_API_KEY` (opcional), `GEMINI_API_ENDPOINT`, `GEMINI_MODEL`, `NODE_ENV`, `PORT`.
-- Teste unitário do schema com casos válido / inválido.
-
-**DoD:** `npm run start:dev` falha com `.env` incompleto e mensagem indicando a variável faltante.
-
----
-
-### Fase 2 — Features novas
-
-> ⚠️ A especificação detalhada das tarefas T-04+ depende do resultado da T-00. As entradas abaixo são **placeholders estruturais** — o conteúdo final será preenchido após Discovery.
-
-#### T-04 · [P1 · Feature] Fluxo completo de análise de infração via IA
-**Pré-requisito:** T-00 concluída. Estado de `IaModule` documentado.
-
-**Escopo provisório** (a refinar):
-- Endpoint `POST /infractions/:id/analyze` que dispara análise da infração no Gemini.
-- Prompt template versionado (em arquivo, não em string solta no service).
-- Persistir resultado da análise vinculado à infração (campo `aiAnalysis` ou tabela `infraction_analyses` — decidir na Discovery).
-- Tratamento de erros: rate limit, timeout, falha de API → resposta 502 padronizada via filtro.
-- Não bloquear a request por tempo indefinido — definir timeout em ConfigService.
-
-**Critérios de aceitação:** a detalhar após T-00.
+| # | Regra |
+|---|---|
+| C1 | Toda rota nova tem DTO com `class-validator`. |
+| C2 | Toda resposta passa pelo `ResponseInterceptor`. |
+| C3 | Toda exceção previsível usa `HttpException`/subclasses. |
+| C4 | Mudança de schema gera migration. Nunca `synchronize: true`. |
+| C5 | Zero segredo hard-coded — tudo via `ConfigService`; variáveis novas no `.env.example`. |
+| C6 | Cobertura de testes não regride (baseline atual: 325 unit / 24 e2e). |
+| C7 | Conventional Commits. |
+| C8 | PR referencia o ID da tarefa (ex.: `R-06`). |
+| C9 | Isolamento de tenant respeitado em toda query de negócio. Master ignora. Padrão canônico em §2.3. |
+| C10 | Senha/hash nunca retornada em nenhuma rota. Implementação estrutural a fazer no R-07. |
+| C11 | Mudança de contrato da API → tipos do frontend regenerados no mesmo ciclo. |
+| C12 | Hotfix/correção isolada em branch e PR próprios, separados de docs e features. |
+| C13 | `npm run lint:check` e `npm test` rodam dentro do Docker (`docker compose exec api ...`). Exceção: pre-commit hook (husky) roda local — paridade garantida pelo lockfile (`prettier` pinado em versão exata). |
 
 ---
 
-#### T-05 · [P1 · Feature] Geração de relatório PDF de infrações
-**Pré-requisito:** T-00 concluída. Estado de `PdfModule` documentado.
+## 5. Plano de Reconciliação — Tarefas
 
-**Escopo provisório:**
-- Endpoint `GET /condominiums/:id/infractions/report.pdf` com filtros por período.
-- Geração via `pdfkit` em stream (não bufferizar tudo em memória).
-- Header `Content-Type: application/pdf` e `Content-Disposition: attachment; filename=...`.
-- Conteúdo: cabeçalho com dados do condomínio, lista de infrações com data, unidade, descrição, análise da IA (se houver).
+> Cada tarefa: `ID · Prioridade · Repo · Modelo recomendado · Status`.
+> **Modelo Opus/Sonnet:** modelos do Claude Code, sem relação com o Gemini (IA do produto). Opus para arquitetura, segurança, schema; Sonnet para execução mecânica.
 
-**Critérios de aceitação:** a detalhar após T-00.
+### Fase A — Reconciliação (fundação)
+
+| ID | Tarefa | Prioridade | Repo | Modelo | Status | PR |
+|---|---|---|---|---|---|---|
+| R-01 | Hotfix `POST /users` (master-only) | P0 | back | Opus | ✅ Mergeado | #48 |
+| R-02 | Enum `SystemRole` + trava de gerente único | P0 | back | Opus | ✅ Mergeado | #50/#52 |
+| R-03+04 | Aposentar modelo papel-por-condomínio (RESIDENT + user_condominium + RolesGuard reescrito + CondominiumAccessGuard) | P0 | back | Opus | ✅ Mergeado | #51/#52 |
+| **R-05** | **`assertTenantScope` helper + cobertura cross-tenant** | **P0** | **back** | **Opus** | **✅ Mergeado** | **#54** |
+| Infra | Pre-commit hook (husky + lint-staged) + pin prettier | P1 | back | Sonnet | ✅ Mergeado | #55 |
+| **R-06** | **Seed do Master por ambiente (`MASTER_EMAIL`/`MASTER_PASSWORD`)** | **P0** | **back** | **Opus** | **🟡 Próxima** | — |
+| **R-07** | **Senha estrutural: `select: false` na entity + remover `delete senha` manuais** | **P1** | **back** | **Sonnet** | **🟡 Pendente** | — |
+
+#### R-06 (próxima) — Seed do Master por ambiente
+Trocar o hash bcrypt fixo na migration `AddCompanyAndMasterUser` por um seed que lê `MASTER_EMAIL` e `MASTER_PASSWORD` do ambiente. Idempotente (não duplica se já existe). Adicionar as variáveis ao `.env.example` com aviso de segurança ("chave-mestra; gerar forte; nunca commitar"). Adicionar ao schema de validação de env (`Joi`/`zod`) se houver. Documentar no `CLAUDE.md`/`README` o procedimento para o setup inicial.
+
+Critérios de aceitação:
+- Migration de seed lê de env, não tem hash fixo;
+- Sem variáveis de ambiente, o boot ou o seed falham com erro claro;
+- Idempotente: rodar duas vezes não duplica usuário;
+- `.env.example` atualizado;
+- Documentação atualizada.
+
+#### R-07 (pendente) — Senha estrutural (C10)
+Hoje a proteção da senha depende de 3 `delete result.senha` manuais espalhados (`auth.service.ts`, `jwt.strategy.ts`, `users.controller.ts`). Se alguém criar uma rota nova e esquecer o `delete`, a senha vaza.
+
+Tarefa: `select: false` na coluna `senha` da entity `User`; `addSelect('user.senha')` no `findOneByEmail` (que precisa da senha para o bcrypt do login); `findOneById` fica sem `addSelect` (a `JwtStrategy` não precisa da senha); remover os 3 `delete result.senha` que se tornam desnecessários. Sem migration (só código).
+
+Critérios de aceitação:
+- Todos os testes verdes;
+- Teste que prova que `JSON.stringify(user)` ou serialização direta nunca inclui `senha`;
+- Os 3 `delete` removidos.
+
+### Fase B — Segurança restante
+
+| ID | Tarefa | Prioridade | Repo | Modelo |
+|---|---|---|---|---|
+| R-08 | JWT em cookie `httpOnly + Secure + SameSite` (toca os dois repos no mesmo ciclo) | P1 | ambos | Opus |
+| R-09 | Revisão de guards pós-reconciliação (`MasterGuard`, `CompanyAdminGuard` (já removido), `RolesGuard`, `InfractionAccessGuard`, `CondominiumAccessGuard`); atualizar `docs/rbac.md` | P2 | back | Opus |
+
+### Fase C — Frontend (estrutura, sem polir visual)
+
+| ID | Tarefa | Prioridade | Repo | Modelo |
+|---|---|---|---|---|
+| R-10 | Telas dos fluxos que o backend já expõe (condomínios, unidades, infrações, análise IA, PDF), respeitando RBAC | P1 | front | Sonnet |
+| R-11 | `middleware.ts` de proteção de rotas | P1 | front | Sonnet |
+| R-12 | Tipos gerados a partir do OpenAPI (`openapi-typescript`) | P1 | front | Sonnet |
+| R-13 | CORS por env multi-origem | P1 | back | Sonnet |
+
+### Fase D — Deploy (marco "pronto para validação")
+
+| ID | Tarefa | Prioridade | Repo | Modelo |
+|---|---|---|---|---|
+| R-14 | Publicar para clientes-piloto: backend + Postgres gerenciado; frontend Vercel; migrations + seed Master no deploy; healthcheck verde; CORS prod | P0 | ambos | Opus |
+
+### Fase E — Visual com Open Design (depois do MVP no ar)
+
+A estratégia escolhida é construir a estrutura/lógica do front primeiro, deixar o **visual** para uma remodelagem com Open Design depois. Não polir aparência antes dessa remodelagem — é retrabalho garantido.
+
+### Fase F — Incremental (pós-validação)
+
+| ID | Tarefa | Prioridade | Repo | Modelo |
+|---|---|---|---|---|
+| R-15 | Reconciliar os módulos extras no SDD conforme uso (Mail, WhatsApp, Audit, Dashboard, Notifications — documentação) | P2 | back | Sonnet |
+| R-16 | Análise IA assíncrona se a latência incomodar | P2 | back | Opus |
+| R-17 | Prompt do Gemini versionado em arquivo (não em string solta) | P3 | back | Sonnet |
+| R-18 | Refactors pendentes (`refactor/current-actor-decorator`, `refactor/unique-violation-helper`, `refactor/split-infractions-service`) | P2 | back | Sonnet |
+| R-19 | Avaliar skills/MCPs instalados (brainstorming, executing-plans, serena, etc.) e adotar o que fizer sentido | P3 | — | — |
 
 ---
 
-#### T-06 · [P2 · Feature] Papéis e autorização (RBAC)
-**Pré-requisito:** confirmação na Discovery sobre como `User` se relaciona com `Condominium`.
+## 6. Definition of Done (toda tarefa)
 
-**Escopo provisório:**
-- Papéis: `ADMIN`, `MANAGER` (síndico), `RESIDENT` — confirmar.
-- Guard `RolesGuard` + decorator `@Roles(...)`.
-- Matriz de permissões documentada em `docs/rbac.md`.
-
----
-
-### Fase 3 — Qualidade e operação (a planejar depois)
-
-- T-07 · Cobertura mínima de testes por módulo (P2)
-- T-08 · Logger estruturado (`pino` ou `winston`) substituindo `console` (P2)
-- T-09 · Healthcheck e readiness (`@nestjs/terminus`) (P2)
-- T-10 · Dockerfile + docker-compose para dev (P3)
-- T-11 · Pipeline CI (lint + test + build + migration check) (P2)
+1. Respeita as convenções §4.
+2. Testes do caso feliz e de ao menos um caso de erro.
+3. `lint`, `test` (e `test:e2e` se aplicável) passam **dentro do Docker** (`docker compose exec api ...`), com `--maxWorkers=2` se houver OOM.
+4. Documentação atualizada se houve mudança de contrato.
+5. Mudança de contrato de API → tipos do frontend regenerados (C11).
+6. PR com descrição, ID da tarefa, evidência. Hotfix/correção em PR isolado (C12).
+7. Revisão humana aprovou. Sem auto-merge.
+8. Pre-commit hook (husky/lint-staged) não bloqueou — se bloqueou, foi corrigido (não pulado com `--no-verify`).
 
 ---
 
-## 6. Definition of Done (geral, aplicável a toda tarefa)
+## 7. Ordem recomendada e estado
 
-Uma tarefa só é considerada **Done** quando:
+Concluído: **R-01 → R-02 → R-03+04 → R-05 → Pre-commit hook.**
+Próximo: **R-06 (seed master) → R-07 (senha estrutural)**, fechando a Fase A.
+Depois: **R-08** (JWT em cookie, Fase B) → Fase C (estrutura do front) → Fase D (deploy) → Fase E (visual com Open Design).
 
-1. Código respeita todas as convenções §4.
-2. Testes novos cobrindo o caso feliz **e** ao menos um caso de erro.
-3. `npm run test`, `npm run test:e2e`, `npm run lint` passam localmente.
-4. Documentação atualizada se houve mudança de contrato (este SDD e/ou `docs/`).
-5. PR aberto contém: descrição, ID da tarefa, prints/evidência quando aplicável.
-6. Revisão humana aprovou (não fazer auto-merge).
+Risco principal restante: **R-08 (JWT em cookie)** toca os dois repos no mesmo ciclo — planejar com cuidado.
 
 ---
 
-## 7. Glossário e referências
+## 8. Glossário
 
-- **ADR (Architecture Decision Record):** documento curto registrando uma decisão arquitetural relevante. Criar em `docs/adr/NNNN-titulo.md`.
-- **Discovery:** fase de leitura/inventário sem modificação de código.
-- **Fonte-relatório:** relatório técnico inicial do projeto (anexado à conversa de origem deste SDD).
+- **Tenant:** empresa-cliente isolada.
+- **Reconciliação:** alinhar o código real ao produto decidido — diferente de "construir do zero".
+- **Discovery:** inspeção só-leitura. Quatro feitos: `state-of-code.md` (master), `discovery-multitenant.md`, `discovery-resident.md`, `discovery-tenant-isolation.md`.
+- **Padrão canônico de isolamento de tenant:** ver §2.3.
+- **Opus/Sonnet:** modelos do Claude Code. Não confundir com Gemini (IA do produto).
 
-**Mudanças neste documento:** seguem PR, com bump de versão no topo e changelog ao final.
-
----
-
-## Changelog
-
-### 2.1 — 2026-05-18
-
-- **§5 Backlog**: T-SD-01 (soft delete, PR #35), T-RST-01 (reset de senha, PR #36), T-CSV-01 (exportação CSV, PR #37), T-DASH-01 (dashboard de métricas, PR #38) marcadas como ✅ entregues.
-- Novo item T-NH-01: histórico de notificações com status real via webhook do Resend (último item de código pendente).
-- Pendências restantes: apenas T-NH-01 (código) + 2 configs externas (domínio Resend, conta Z-API real).
-
-### 2.0 — 2026-05-18
-
-**Major revisão pós-virada multi-tenant + integrações reais.** Mudanças estruturais desde a 1.1:
-
-- **§1 Contexto**: produto agora é SaaS multi-tenant (Master → Company → User → Condominium → Unit → Infraction). Frontend Next.js 15 existe e está em uso.
-- **§2 Stack**: adicionados `resend` (e-mail), Z-API (WhatsApp via fetch direto), `nestjs-pino`, `joi`, `pdf-parse`, `multer`. Frontend documentado.
-- **§3 Arquitetura**: adicionados módulos `companies`, `audit`, `mail`, `whatsapp`. Entidades `Company`, `InfractionImage`, `AuditLog`. Guards `MasterGuard`, `CompanyAdminGuard`, `InfractionAccessGuard`. Hierarquia RBAC explicitada.
-- **§5 Backlog**: T-04 a T-11 antigas concluídas. Novas tarefas entregues: T-IA-01/02, T-AP-01, T-NT-01/02, T-IMG-01, T-MT-01..04, T-AUDIT-01. Pendentes recentes adicionadas.
-- **Multi-tenant isolation** em dois níveis: filtro de companyId em listas + guard de acesso em `:id`.
-- **Audit log** com 9 pontos instrumentados (INFRACTION_CREATED/APPROVED/SENT/WHATSAPP_SENT/DELETED + CONDOMINIUM_CREATED/DELETED + COMPANY_CREATED + EMPLOYEE_CREATED).
-- **Master user** criado via migration: `master@audicon.com` / `MasterAudicon@2026` (dev).
-
-### 1.1 — 2026-05-15
-
-- §2: Node fixado em ≥ 20 (Node 18 não suporta `crypto` global usado por `@nestjs/typeorm` v11).
-- §5 T-02: nomes de variáveis confirmados na Discovery — `DB_USERNAME` (não `DB_USER`) e `DB_DATABASE` (não `DB_NAME`).
-- §5 T-03: nome correto da variável de expiração é `JWT_EXPIRATION` (não `JWT_EXPIRES_IN`); lista de variáveis cobertas expandida com `NODE_ENV`, `GEMINI_API_ENDPOINT`, `GEMINI_MODEL`.
-
-### 1.0 — 2026-05-15
-
-- Versão inicial.
+**Changelog:**
+- v3.0 — promoção do backlog R-xx para o SDD (deixa de viver só em conversas); R-01 a R-05 marcados como ✅ com PRs; R-06 (seed master) detalhado; R-07 (senha estrutural) adicionado a partir do findings de C10; Fase E redefinida para visual com Open Design; convenção C13 sobre Docker adicionada.
+- v2.0 — reescrita para arquitetura multi-tenant, RBAC de 3 papéis, inclusão do frontend (obsoleta).
+- v1.0 — versão inicial (obsoleta).
