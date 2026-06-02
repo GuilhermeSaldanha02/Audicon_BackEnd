@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ProfileResponseDto } from './dto/profile-response.dto';
 @Injectable()
 export class UsersService {
   constructor(
@@ -45,23 +46,29 @@ export class UsersService {
     await this.usersRepository.save(user);
   }
 
-  async getProfile(id: number): Promise<{
-    nome: string;
-    email: string;
-    isMaster: boolean;
-    companyName: string | null;
-  }> {
+  async getProfile(id: number): Promise<ProfileResponseDto> {
     const user = await this.usersRepository.findOne({
       where: { id },
       relations: { company: true },
     });
     if (!user) {
-      return { nome: '', email: '', isMaster: false, companyName: null };
+      return {
+        nome: '',
+        email: '',
+        isMaster: false,
+        companyId: null,
+        mustChangePassword: false,
+        companyName: null,
+      };
     }
     return {
       nome: user.nome,
       email: user.email,
       isMaster: user.isMaster,
+      // R-08: companyId e mustChangePassword alimentam a guarda de rota e o
+      // redirect pós-login do front (antes vinham do JWT decodificado).
+      companyId: user.companyId,
+      mustChangePassword: user.mustChangePassword,
       companyName: user.company?.name ?? null,
     };
   }
