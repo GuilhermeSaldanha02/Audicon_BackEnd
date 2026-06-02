@@ -125,11 +125,13 @@ describe('UsersService', () => {
   });
 
   describe('getProfile', () => {
-    it('deve retornar dados do perfil com nome da empresa', async () => {
+    it('deve retornar dados do perfil com companyId, mustChangePassword e nome da empresa', async () => {
       repository.findOne.mockResolvedValue({
         nome: 'Admin',
         email: 'admin@x.com',
         isMaster: false,
+        companyId: 7,
+        mustChangePassword: true,
         company: { name: 'Empresa X' },
       });
       const result = await service.getProfile(1);
@@ -137,6 +139,8 @@ describe('UsersService', () => {
         nome: 'Admin',
         email: 'admin@x.com',
         isMaster: false,
+        companyId: 7,
+        mustChangePassword: true,
         companyName: 'Empresa X',
       });
     });
@@ -148,6 +152,8 @@ describe('UsersService', () => {
         nome: '',
         email: '',
         isMaster: false,
+        companyId: null,
+        mustChangePassword: false,
         companyName: null,
       });
     });

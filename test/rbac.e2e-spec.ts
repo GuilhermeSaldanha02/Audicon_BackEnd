@@ -141,7 +141,7 @@ describe('RBAC (e2e) — RolesGuard + CondominiumAccessGuard', () => {
     const token = sign(1, 'g_a@x.com');
     await request(app.getHttpServer())
       .patch('/api/v1/condominiums/10/units/99')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `access_token=${token}`)
       .send({ ownerName: 'Novo' })
       .expect(200);
     expect(unitsServiceMock.update).toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe('RBAC (e2e) — RolesGuard + CondominiumAccessGuard', () => {
     const token = sign(1, 'g_a@x.com');
     await request(app.getHttpServer())
       .patch('/api/v1/condominiums/20/units/99')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `access_token=${token}`)
       .send({ ownerName: 'X' })
       .expect(403);
     expect(unitsServiceMock.update).not.toHaveBeenCalled();
@@ -163,7 +163,7 @@ describe('RBAC (e2e) — RolesGuard + CondominiumAccessGuard', () => {
     const token = sign(2, 'f_a@x.com');
     await request(app.getHttpServer())
       .patch('/api/v1/condominiums/10/units/99')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `access_token=${token}`)
       .send({ ownerName: 'X' })
       .expect(403);
     expect(unitsServiceMock.update).not.toHaveBeenCalled();
@@ -174,11 +174,11 @@ describe('RBAC (e2e) — RolesGuard + CondominiumAccessGuard', () => {
     const token = sign(2, 'f_a@x.com');
     await request(app.getHttpServer())
       .get('/api/v1/condominiums/10/units/99')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `access_token=${token}`)
       .expect(200);
   });
 
-  it('Sem Authorization: 401', async () => {
+  it('Sem cookie de autenticação: 401', async () => {
     await request(app.getHttpServer())
       .patch('/api/v1/condominiums/10/units/99')
       .send({ ownerName: 'X' })

@@ -1,11 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { AUTH_COOKIE_NAME } from '../common/config/auth-cookie';
+
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: { login: jest.Mock };
   let usersService: { getProfile: jest.Mock; changePassword: jest.Mock };
+  const configValues: Record<string, unknown> = {
+    COOKIE_SAMESITE: 'lax',
+    COOKIE_SECURE: 'false',
+    JWT_EXPIRATION: '1h',
+  };
   beforeEach(async () => {
     authService = { login: jest.fn() };
     usersService = { getProfile: jest.fn(), changePassword: jest.fn() };
@@ -14,6 +22,10 @@ describe('AuthController', () => {
       providers: [
         { provide: AuthService, useValue: authService },
         { provide: UsersService, useValue: usersService },
+        {
+          provide: ConfigService,
+          useValue: { get: (k: string) => configValues[k] },
+        },
       ],
     }).compile();
     controller = module.get<AuthController>(AuthController);
@@ -22,12 +34,29 @@ describe('AuthController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('login delega ao authService com o usuário do request', async () => {
+  it('login seta o cookie httpOnly e retorna apenas { success: true } (sem token no corpo)', async () => {
     const req: any = { user: { id: 1, email: 'a@x.com' } };
     authService.login.mockResolvedValue({ access_token: 'tok' });
-    const result = await controller.login(req);
+    const res: any = { cookie: jest.fn() };
+    const result = await controller.login(req, res);
     expect(authService.login).toHaveBeenCalledWith(req.user);
-    expect(result).toEqual({ access_token: 'tok' });
+    expect(res.cookie).toHaveBeenCalledWith(
+      AUTH_COOKIE_NAME,
+      'tok',
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
+    );
+    expect(result).toEqual({ success: true });
+    expect(result).not.toHaveProperty('access_token');
+  });
+
+  it('logout limpa o cookie e retorna { success: true }', () => {
+    const res: any = { clearCookie: jest.fn() };
+    const result = controller.logout(res);
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      AUTH_COOKIE_NAME,
+      expect.objectContaining({ httpOnly: true }),
+    );
+    expect(result).toEqual({ success: true });
   });
 
   it('getProfile delega ao usersService com o id do usuário', () => {

@@ -33,9 +33,10 @@ function logOk(detail) {
   process.stdout.write(`     OK  ${detail}\n`);
 }
 
-async function http(method, url, { body, token, accept } = {}) {
+async function http(method, url, { body, cookie, accept } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // R-08: autenticação via cookie httpOnly (não mais Authorization: Bearer).
+  if (cookie) headers.Cookie = cookie;
   if (accept) headers.Accept = accept;
   const res = await fetch(url, {
     method,
@@ -75,6 +76,33 @@ function expect(cond, message) {
   }
 }
 
+/**
+ * R-08: faz login e extrai o cookie httpOnly `access_token` do Set-Cookie
+ * (o token não vem mais no corpo). Retorna a string "access_token=<jwt>" para
+ * reenviar via header Cookie nos requests autenticados.
+ */
+async function login(email, password) {
+  const res = await fetch(`${BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status} on POST /auth/login`);
+    err.status = res.status;
+    err.body = await res.text();
+    throw err;
+  }
+  const setCookies =
+    typeof res.headers.getSetCookie === 'function'
+      ? res.headers.getSetCookie()
+      : [res.headers.get('set-cookie')].filter(Boolean);
+  const authCookie = setCookies
+    .map((c) => c.split(';')[0])
+    .find((c) => c.startsWith('access_token='));
+  return authCookie ?? null;
+}
+
 async function main() {
   process.stdout.write(`Audicon smoke E2E\nBase URL: ${BASE_URL}\n`);
 
@@ -94,16 +122,16 @@ async function main() {
   // --- Master flow: create company + admin user ---
 
   logStep('Master: login');
-  r = await http('POST', `${BASE_URL}/auth/login`, {
-    body: { email: MASTER_EMAIL, password: MASTER_PASSWORD },
-  });
-  const masterToken = r.body.data?.access_token;
-  expect(typeof masterToken === 'string' && masterToken.length > 20, 'master login should return access_token');
-  logOk(`master token ${masterToken.slice(0, 16)}…`);
+  const masterCookie = await login(MASTER_EMAIL, MASTER_PASSWORD);
+  expect(
+    typeof masterCookie === 'string' && masterCookie.startsWith('access_token='),
+    'master login should set the access_token cookie',
+  );
+  logOk('master cookie set (httpOnly)');
 
   logStep('Master: create company + admin');
   r = await http('POST', `${BASE_URL}/companies`, {
-    token: masterToken,
+    cookie: masterCookie,
     body: {
       name: `QA Empresa ${ts}`,
       cnpj: companyCnpj,
@@ -119,39 +147,39 @@ async function main() {
   logOk(`company #${companyId}, admin ${adminEmail}`);
 
   logStep('Master: list companies');
-  r = await http('GET', `${BASE_URL}/companies`, { token: masterToken });
+  r = await http('GET', `${BASE_URL}/companies`, { cookie: masterCookie });
   expect(Array.isArray(r.body.data), 'companies list should be an array');
   expect(r.body.data.some((c) => c.id === companyId), 'list should include the new company');
   logOk(`${r.body.data.length} companies`);
 
   logStep('Master: get company by id');
-  r = await http('GET', `${BASE_URL}/companies/${companyId}`, { token: masterToken });
+  r = await http('GET', `${BASE_URL}/companies/${companyId}`, { cookie: masterCookie });
   expect(r.body.data?.id === companyId, 'company id should match');
   logOk(`company name=${r.body.data.name}`);
 
   logStep('Master: list users of company');
-  r = await http('GET', `${BASE_URL}/companies/${companyId}/users`, { token: masterToken });
+  r = await http('GET', `${BASE_URL}/companies/${companyId}/users`, { cookie: masterCookie });
   expect(Array.isArray(r.body.data) && r.body.data.length >= 1, 'should have at least the admin');
   logOk(`${r.body.data.length} user(s)`);
 
   // --- Admin flow: login with temp password ---
 
   logStep('Admin: login with temp password');
-  r = await http('POST', `${BASE_URL}/auth/login`, {
-    body: { email: adminEmail, password: adminTempPassword },
-  });
-  const adminToken = r.body.data?.access_token;
-  expect(typeof adminToken === 'string' && adminToken.length > 20, 'admin login should return access_token');
-  logOk(`admin token ${adminToken.slice(0, 16)}…`);
+  const adminCookie = await login(adminEmail, adminTempPassword);
+  expect(
+    typeof adminCookie === 'string' && adminCookie.startsWith('access_token='),
+    'admin login should set the access_token cookie',
+  );
+  logOk('admin cookie set (httpOnly)');
 
-  logStep('Admin: profile (JWT)');
-  r = await http('GET', `${BASE_URL}/auth/profile`, { token: adminToken });
+  logStep('Admin: profile (cookie)');
+  r = await http('GET', `${BASE_URL}/auth/profile`, { cookie: adminCookie });
   expect(r.body.data?.email === adminEmail, 'profile should match admin user');
   logOk(`profile email=${r.body.data.email}, companyId=${r.body.data.companyId}`);
 
   logStep('Condominiums: create');
   r = await http('POST', `${BASE_URL}/condominiums`, {
-    token: adminToken,
+    cookie: adminCookie,
     body: { name: `Condo QA ${ts}`, cnpj: condoCnpj, address: 'Rua Teste, 123' },
   });
   const condoId = r.body.data?.id;
@@ -159,20 +187,20 @@ async function main() {
   logOk(`condo #${condoId}`);
 
   logStep('Condominiums: list');
-  r = await http('GET', `${BASE_URL}/condominiums`, { token: adminToken });
+  r = await http('GET', `${BASE_URL}/condominiums`, { cookie: adminCookie });
   const condoList = Array.isArray(r.body.data) ? r.body.data : r.body.data?.data;
   expect(Array.isArray(condoList), 'list should return an array');
   expect(condoList.some((c) => c.id === condoId), 'list should contain the created condo');
   logOk(`${condoList.length} found`);
 
   logStep('Condominiums: get by id');
-  r = await http('GET', `${BASE_URL}/condominiums/${condoId}`, { token: adminToken });
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}`, { cookie: adminCookie });
   expect(r.body.data?.cnpj === condoCnpj, 'cnpj should round-trip');
   logOk(`cnpj=${r.body.data.cnpj}`);
 
   logStep('Condominiums: patch address');
   r = await http('PATCH', `${BASE_URL}/condominiums/${condoId}`, {
-    token: adminToken,
+    cookie: adminCookie,
     body: { address: 'Av. Atualizada, 456' },
   });
   expect(r.body.data?.address === 'Av. Atualizada, 456', 'address should update');
@@ -180,7 +208,7 @@ async function main() {
 
   logStep('Units: create');
   r = await http('POST', `${BASE_URL}/condominiums/${condoId}/units`, {
-    token: adminToken,
+    cookie: adminCookie,
     body: { identifier: `A-${ts}`, ownerName: 'Fulano de Tal' },
   });
   const unitId = r.body.data?.id;
@@ -188,19 +216,19 @@ async function main() {
   logOk(`unit #${unitId}`);
 
   logStep('Units: list under condominium');
-  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units`, { token: adminToken });
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units`, { cookie: adminCookie });
   const unitList = Array.isArray(r.body.data) ? r.body.data : r.body.data?.data;
   expect(Array.isArray(unitList) && unitList.length >= 1, 'units list should contain at least the new unit');
   logOk(`${unitList.length} unit(s)`);
 
   logStep('Units: get by id');
-  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token: adminToken });
+  r = await http('GET', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { cookie: adminCookie });
   expect(r.body.data?.identifier === `A-${ts}`, 'identifier should round-trip');
   logOk(`identifier=${r.body.data.identifier}`);
 
   logStep('Units: patch ownerName');
   r = await http('PATCH', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, {
-    token: adminToken,
+    cookie: adminCookie,
     body: { ownerName: 'Ciclano da Silva' },
   });
   expect(r.body.data?.ownerName === 'Ciclano da Silva', 'ownerName should update');
@@ -208,7 +236,7 @@ async function main() {
 
   logStep('Infractions: create');
   r = await http('POST', `${BASE_URL}/infractions`, {
-    token: adminToken,
+    cookie: adminCookie,
     body: {
       description: 'Morador toca som alto após 22h, perturbando vizinhos.',
       unitId,
@@ -220,13 +248,13 @@ async function main() {
   logOk(`infraction #${infractionId}`);
 
   logStep('Infractions: list by unit');
-  r = await http('GET', `${BASE_URL}/infractions?unitId=${unitId}`, { token: adminToken });
+  r = await http('GET', `${BASE_URL}/infractions?unitId=${unitId}`, { cookie: adminCookie });
   const infractionList = Array.isArray(r.body.data) ? r.body.data : r.body.data?.data;
   expect(Array.isArray(infractionList) && infractionList.length >= 1, 'should list at least the new infraction');
   logOk(`${infractionList.length} infraction(s)`);
 
   logStep('Infractions: analyze (AI, falls back to mock without GEMINI_API_KEY)');
-  r = await http('POST', `${BASE_URL}/infractions/${infractionId}/analyze`, { token: adminToken });
+  r = await http('POST', `${BASE_URL}/infractions/${infractionId}/analyze`, { cookie: adminCookie });
   expect(r.body.data?.status === 'analyzed', 'status should flip to analyzed');
   expect(typeof r.body.data?.formalDescription === 'string' && r.body.data.formalDescription.length > 0,
     'formalDescription should be populated');
@@ -234,7 +262,7 @@ async function main() {
 
   logStep('Infractions: download single PDF');
   r = await http('GET', `${BASE_URL}/infractions/${infractionId}/document`, {
-    token: adminToken,
+    cookie: adminCookie,
     accept: 'application/pdf',
   });
   expect(r.kind === 'pdf', 'response should be PDF');
@@ -244,7 +272,7 @@ async function main() {
 
   logStep('Reports: download consolidated PDF for condominium');
   r = await http('GET', `${BASE_URL}/condominiums/${condoId}/infractions/report.pdf`, {
-    token: adminToken,
+    cookie: adminCookie,
     accept: 'application/pdf',
   });
   expect(r.kind === 'pdf', 'response should be PDF');
@@ -254,15 +282,15 @@ async function main() {
   logOk(`report PDF ${r.buffer.length} bytes`);
 
   logStep('Cleanup: delete infraction');
-  await http('DELETE', `${BASE_URL}/infractions/${infractionId}`, { token: adminToken });
+  await http('DELETE', `${BASE_URL}/infractions/${infractionId}`, { cookie: adminCookie });
   logOk(`infraction #${infractionId} deleted`);
 
   logStep('Cleanup: delete unit');
-  await http('DELETE', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { token: adminToken });
+  await http('DELETE', `${BASE_URL}/condominiums/${condoId}/units/${unitId}`, { cookie: adminCookie });
   logOk(`unit #${unitId} deleted`);
 
   logStep('Cleanup: delete condominium');
-  await http('DELETE', `${BASE_URL}/condominiums/${condoId}`, { token: adminToken });
+  await http('DELETE', `${BASE_URL}/condominiums/${condoId}`, { cookie: adminCookie });
   logOk(`condo #${condoId} deleted`);
 
   process.stdout.write(`\nAll ${stepNo} steps passed.\n`);

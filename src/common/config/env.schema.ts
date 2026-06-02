@@ -15,6 +15,19 @@ export const envValidationSchema = Joi.object({
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRATION: Joi.string().required(),
 
+  // R-08: cookie httpOnly que carrega o JWT. Flags por ambiente.
+  // dev (same-site, sem HTTPS): lax + false. prod (cross-site): none + true.
+  // SameSite=None exige Secure=true (browsers descartam o cookie sem isso).
+  COOKIE_SAMESITE: Joi.string().valid('lax', 'strict', 'none').default('lax'),
+  COOKIE_SECURE: Joi.when('COOKIE_SAMESITE', {
+    is: 'none',
+    then: Joi.boolean().valid(true).default(true).messages({
+      'any.only': 'COOKIE_SECURE deve ser true quando COOKIE_SAMESITE=none.',
+    }),
+    otherwise: Joi.boolean().default(false),
+  }),
+  COOKIE_MAX_AGE_MS: Joi.number().integer().min(60000).optional(),
+
   // Master (system owner) credentials. Consumed by the SeedMasterFromEnv
   // migration; required at boot too so the master-key is never silently
   // missing. MASTER_PASSWORD must be strong: min 12 chars with uppercase,

@@ -87,7 +87,7 @@ describe('POST /api/v1/users (e2e — proteção R1)', () => {
 
     await request(app.getHttpServer())
       .post('/api/v1/users')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `access_token=${token}`)
       .send(validBody)
       .expect(403);
 
@@ -99,7 +99,7 @@ describe('POST /api/v1/users (e2e — proteção R1)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/api/v1/users')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `access_token=${token}`)
       .send(validBody)
       .expect(201);
 
