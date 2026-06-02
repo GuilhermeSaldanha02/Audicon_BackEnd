@@ -3,6 +3,7 @@ import {
   Post,
   UseGuards,
   Request,
+  Res,
   Get,
   Body,
   HttpCode,
@@ -12,14 +13,20 @@ import {
   ApiTags,
   ApiOperation,
   ApiBody,
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiResponse,
 } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '../users/users.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import {
+  AUTH_COOKIE_NAME,
+  buildAuthCookieOptions,
+} from '../common/config/auth-cookie';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -27,6 +34,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly configService: ConfigService,
   ) {}
 
   @ApiOperation({ summary: 'Login com e-mail e senha' })
@@ -42,18 +50,46 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Login bem-sucedido, retorna access_token',
+    description:
+      'Login bem-sucedido. Seta o cookie httpOnly access_token; corpo apenas { success: true }.',
   })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Request() req: any) {
-    return this.authService.login(req.user);
+  async login(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ success: true }> {
+    // R-08: o token vai no cookie httpOnly, não no corpo. O front hidrata os
+    // claims sempre via GET /auth/profile (fonte única) — login e reload.
+    const { access_token } = await this.authService.login(req.user);
+    res.cookie(
+      AUTH_COOKIE_NAME,
+      access_token,
+      buildAuthCookieOptions(this.configService),
+    );
+    return { success: true };
+  }
+
+  @ApiOperation({ summary: 'Logout — limpa o cookie de autenticação' })
+  @ApiCookieAuth()
+  @ApiResponse({ status: 200, description: 'Cookie de autenticação removido' })
+  @ApiResponse({ status: 401, description: 'Token inválido ou ausente' })
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  logout(@Res({ passthrough: true }) res: Response): { success: true } {
+    // Mesmas flags do set (sem maxAge) para o browser casar e remover o cookie.
+    res.clearCookie(
+      AUTH_COOKIE_NAME,
+      buildAuthCookieOptions(this.configService),
+    );
+    return { success: true };
   }
 
   @ApiOperation({ summary: 'Retorna os dados do usuário autenticado' })
-  @ApiBearerAuth()
+  @ApiCookieAuth()
   @ApiResponse({ status: 200, description: 'Dados do usuário autenticado' })
   @ApiResponse({ status: 401, description: 'Token inválido ou ausente' })
   @UseGuards(JwtAuthGuard)
@@ -65,7 +101,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Trocar senha (obrigatório após primeiro login ou reset)',
   })
-  @ApiBearerAuth()
+  @ApiCookieAuth()
   @ApiResponse({ status: 200, description: 'Senha alterada com sucesso' })
   @ApiResponse({ status: 400, description: 'Senha inválida' })
   @ApiResponse({ status: 401, description: 'Token inválido ou ausente' })

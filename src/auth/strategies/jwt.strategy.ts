@@ -1,8 +1,22 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
+import type { Request } from 'express';
 import { UsersService } from 'src/users/users.service';
+import { AUTH_COOKIE_NAME } from '../../common/config/auth-cookie';
+
+/**
+ * R-08: o JWT agora vem do cookie httpOnly `access_token` (não mais do header
+ * Authorization: Bearer). Requer cookie-parser ativo (setupApp) para popular
+ * req.cookies.
+ */
+function cookieExtractor(req: Request): string | null {
+  const cookies = (req as Request & { cookies?: Record<string, string> })
+    ?.cookies;
+  return cookies?.[AUTH_COOKIE_NAME] ?? null;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -10,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private usersService: UsersService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: cookieExtractor,
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
     });

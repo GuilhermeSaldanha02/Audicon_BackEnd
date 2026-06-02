@@ -258,7 +258,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 1);
       const res = await request(app.getHttpServer())
         .get('/api/v1/condominiums')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const data = res.body.data;
@@ -273,7 +273,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 99);
       const res = await request(app.getHttpServer())
         .get('/api/v1/condominiums')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const data = res.body.data;
@@ -337,7 +337,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 1);
       const res = await request(app.getHttpServer())
         .get('/api/v1/infractions')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const data = res.body.data;
@@ -353,7 +353,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 2);
       const res = await request(app.getHttpServer())
         .get('/api/v1/infractions')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const data = res.body.data;
@@ -419,7 +419,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 1);
       const res = await request(app.getHttpServer())
         .get('/api/v1/infractions/export')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const csv: string = res.text;
@@ -491,7 +491,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 1);
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboard')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       expect(res.body.data.totalInfractions).toBe(1);
@@ -501,7 +501,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 99);
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboard')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       expect(res.body.data.totalInfractions).toBe(2);
@@ -555,7 +555,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 1);
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-log')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const data = res.body.data;
@@ -570,7 +570,7 @@ describe('Tenant Isolation (e2e) — assertTenantScope nas rotas de listagem', (
       const token = sign(jwt, 99);
       const res = await request(app.getHttpServer())
         .get('/api/v1/audit-log')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', `access_token=${token}`)
         .expect(200);
 
       const data = res.body.data;
