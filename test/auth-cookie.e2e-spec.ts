@@ -160,7 +160,10 @@ describe('Auth por cookie httpOnly (e2e) — R-08', () => {
       c.startsWith('access_token='),
     );
     expect(cleared).toBeDefined();
-    // clearCookie zera o valor e expira no passado (Thu, 01 Jan 1970).
+    // Delete real: valor vazio E expirado no passado (não um cookie vazio que
+    // persiste por maxAge). clearCookie sem maxAge emite Expires epoch.
     expect(cleared).toMatch(/access_token=;/);
+    expect(cleared).toMatch(/Expires=Thu, 01 Jan 1970/i);
+    expect(cleared).not.toMatch(/Max-Age=\d/i);
   });
 });

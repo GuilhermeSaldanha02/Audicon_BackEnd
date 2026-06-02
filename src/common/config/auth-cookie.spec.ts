@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   AUTH_COOKIE_NAME,
   buildAuthCookieOptions,
+  buildAuthCookieClearOptions,
   parseDurationToMs,
 } from './auth-cookie';
 
@@ -87,6 +88,33 @@ describe('auth-cookie', () => {
     it('SameSite=None sem Secure → lança (browsers descartam)', () => {
       expect(() =>
         buildAuthCookieOptions(
+          configWith({ COOKIE_SAMESITE: 'none', COOKIE_SECURE: 'false' }),
+        ),
+      ).toThrow(/SameSite=none/i);
+    });
+  });
+
+  describe('buildAuthCookieClearOptions', () => {
+    it('retorna a base SEM maxAge (delete real no clearCookie)', () => {
+      const opts = buildAuthCookieClearOptions(
+        configWith({
+          COOKIE_SAMESITE: 'lax',
+          COOKIE_SECURE: 'false',
+          JWT_EXPIRATION: '1h',
+        }),
+      );
+      expect(opts).toEqual({
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false,
+        path: '/',
+      });
+      expect(opts).not.toHaveProperty('maxAge');
+    });
+
+    it('aplica a mesma regra none⇒secure', () => {
+      expect(() =>
+        buildAuthCookieClearOptions(
           configWith({ COOKIE_SAMESITE: 'none', COOKIE_SECURE: 'false' }),
         ),
       ).toThrow(/SameSite=none/i);

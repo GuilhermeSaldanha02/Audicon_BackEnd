@@ -46,16 +46,17 @@ function resolveMaxAgeMs(config: ConfigService): number {
 }
 
 /**
- * Monta as opções do cookie de autenticação por ambiente, lidas via ConfigService.
+ * Atributos base do cookie (sem maxAge), comuns ao set e ao clear.
+ * O browser só remove um cookie se os atributos (path/sameSite/secure) casarem
+ * com os do set — por isso set e clear compartilham esta base.
  *
  * - `httpOnly`: sempre `true` (fecha XSS — token fora do alcance do JS).
  * - `sameSite`: `COOKIE_SAMESITE` (`lax` em dev same-site / `none` em prod cross-site).
  * - `secure`: `COOKIE_SECURE` (`false` em dev sem HTTPS / `true` em prod).
- * - `maxAge`: derivado de `JWT_EXPIRATION` (ou `COOKIE_MAX_AGE_MS` se setado).
  *
  * Falha cedo se `SameSite=None` sem `Secure` — combinação que os browsers descartam.
  */
-export function buildAuthCookieOptions(config: ConfigService): CookieOptions {
+function buildBaseCookieOptions(config: ConfigService): CookieOptions {
   const sameSiteRaw = (
     config.get<string>('COOKIE_SAMESITE') ?? 'lax'
   ).toLowerCase();
@@ -73,11 +74,23 @@ export function buildAuthCookieOptions(config: ConfigService): CookieOptions {
     );
   }
 
-  return {
-    httpOnly: true,
-    sameSite,
-    secure,
-    maxAge: resolveMaxAgeMs(config),
-    path: '/',
-  };
+  return { httpOnly: true, sameSite, secure, path: '/' };
+}
+
+/**
+ * Opções para SETAR o cookie no login: base + `maxAge` derivado de
+ * `JWT_EXPIRATION` (ou `COOKIE_MAX_AGE_MS` se setado).
+ */
+export function buildAuthCookieOptions(config: ConfigService): CookieOptions {
+  return { ...buildBaseCookieOptions(config), maxAge: resolveMaxAgeMs(config) };
+}
+
+/**
+ * Opções para LIMPAR o cookie no logout: base SEM `maxAge`, para o `clearCookie`
+ * emitir um delete real (Expires no passado), não um cookie vazio que persiste.
+ */
+export function buildAuthCookieClearOptions(
+  config: ConfigService,
+): CookieOptions {
+  return buildBaseCookieOptions(config);
 }

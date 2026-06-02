@@ -26,6 +26,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import {
   AUTH_COOKIE_NAME,
   buildAuthCookieOptions,
+  buildAuthCookieClearOptions,
 } from '../common/config/auth-cookie';
 
 @ApiTags('Auth')
@@ -80,10 +81,11 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   logout(@Res({ passthrough: true }) res: Response): { success: true } {
-    // Mesmas flags do set (sem maxAge) para o browser casar e remover o cookie.
+    // Mesmas flags do set, sem maxAge — para o browser casar os atributos e
+    // o clearCookie emitir um delete real (Expires no passado).
     res.clearCookie(
       AUTH_COOKIE_NAME,
-      buildAuthCookieOptions(this.configService),
+      buildAuthCookieClearOptions(this.configService),
     );
     return { success: true };
   }
