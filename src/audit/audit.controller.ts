@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiOperation,
   ApiQuery,
   ApiResponse,
@@ -22,7 +22,7 @@ class AuditQueryDto extends PaginationDto {
 }
 
 @ApiTags('Audit Log')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('audit-log')
 export class AuditController {

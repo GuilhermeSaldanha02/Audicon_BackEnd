@@ -23,6 +23,7 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '../users/users.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ProfileResponseDto } from '../users/dto/profile-response.dto';
 import {
   AUTH_COOKIE_NAME,
   buildAuthCookieOptions,
@@ -92,7 +93,11 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Retorna os dados do usuário autenticado' })
   @ApiCookieAuth()
-  @ApiResponse({ status: 200, description: 'Dados do usuário autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Dados do usuário autenticado',
+    type: ProfileResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Token inválido ou ausente' })
   @UseGuards(JwtAuthGuard)
   @Get('profile')

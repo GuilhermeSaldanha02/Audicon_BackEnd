@@ -16,7 +16,7 @@ async function bootstrap() {
       'API de gerenciamento de condomínios com análise de infrações via IA',
     )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addCookieAuth('access_token')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);

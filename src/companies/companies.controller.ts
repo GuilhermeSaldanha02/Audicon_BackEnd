@@ -13,8 +13,9 @@ import {
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
+import { CompanyResponseDto } from './dto/company-response.dto';
 import {
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -28,7 +29,7 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { Patch } from '@nestjs/common';
 
 @ApiTags('Companies (master only)')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard, MasterGuard)
 @Controller('companies')
 export class CompaniesController {
@@ -41,7 +42,11 @@ export class CompaniesController {
     summary:
       'Criar uma nova empresa + usuário admin inicial (apenas master). Retorna senha temporária.',
   })
-  @ApiResponse({ status: 201, description: 'Empresa criada' })
+  @ApiResponse({
+    status: 201,
+    description: 'Empresa criada',
+    type: CompanyResponseDto,
+  })
   @ApiResponse({
     status: 403,
     description: 'Apenas master pode criar empresas',
@@ -53,14 +58,22 @@ export class CompaniesController {
   }
 
   @ApiOperation({ summary: 'Listar todas as empresas (apenas master)' })
-  @ApiResponse({ status: 200, description: 'Lista de empresas' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de empresas',
+    type: [CompanyResponseDto],
+  })
   @Get()
   findAll() {
     return this.companiesService.findAll();
   }
 
   @ApiOperation({ summary: 'Buscar empresa por ID (apenas master)' })
-  @ApiResponse({ status: 200, description: 'Empresa encontrada' })
+  @ApiResponse({
+    status: 200,
+    description: 'Empresa encontrada',
+    type: CompanyResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
@@ -88,7 +101,11 @@ export class CompaniesController {
   }
 
   @ApiOperation({ summary: 'Atualizar nome/CNPJ da empresa (apenas master)' })
-  @ApiResponse({ status: 200, description: 'Empresa atualizada' })
+  @ApiResponse({
+    status: 200,
+    description: 'Empresa atualizada',
+    type: CompanyResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
   @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
   @Patch(':id')

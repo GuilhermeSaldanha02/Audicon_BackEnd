@@ -6,7 +6,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -17,7 +17,7 @@ import { InfractionAccessGuard } from 'src/common/guards/infraction-access.guard
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('infractions')
 export class NotificationsController {
