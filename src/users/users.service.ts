@@ -9,6 +9,8 @@ import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
+import { SystemRole } from '../common/enums/system-role.enum';
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -59,6 +61,7 @@ export class UsersService {
         companyId: null,
         mustChangePassword: false,
         companyName: null,
+        role: SystemRole.FUNCIONARIO,
       };
     }
     return {
@@ -70,6 +73,7 @@ export class UsersService {
       companyId: user.companyId,
       mustChangePassword: user.mustChangePassword,
       companyName: user.company?.name ?? null,
+      role: user.role,
     };
   }
 }

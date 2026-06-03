@@ -12,6 +12,7 @@ import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
 import { LocalStrategy } from '../src/auth/strategies/local.strategy';
 import { UsersService } from '../src/users/users.service';
 import { setupApp } from '../src/setup-app';
+import { SystemRole } from '../src/common/enums/system-role.enum';
 
 /**
  * R-08 — Prova ponta a ponta do fluxo de autenticação por cookie httpOnly:
@@ -46,6 +47,7 @@ describe('Auth por cookie httpOnly (e2e) — R-08', () => {
       companyId: user.companyId,
       mustChangePassword: user.mustChangePassword,
       companyName: 'Empresa X',
+      role: SystemRole.FUNCIONARIO,
     })),
   };
 
@@ -125,6 +127,7 @@ describe('Auth por cookie httpOnly (e2e) — R-08', () => {
       isMaster: false,
       companyId: 7,
       mustChangePassword: false,
+      role: SystemRole.FUNCIONARIO,
     });
   });
 
