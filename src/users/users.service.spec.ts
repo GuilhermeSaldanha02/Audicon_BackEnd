@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
+import { SystemRole } from '../common/enums/system-role.enum';
 describe('UsersService', () => {
   let service: UsersService;
   let repository: {
@@ -133,6 +134,7 @@ describe('UsersService', () => {
         companyId: 7,
         mustChangePassword: true,
         company: { name: 'Empresa X' },
+        role: SystemRole.GERENTE,
       });
       const result = await service.getProfile(1);
       expect(result).toEqual({
@@ -142,6 +144,7 @@ describe('UsersService', () => {
         companyId: 7,
         mustChangePassword: true,
         companyName: 'Empresa X',
+        role: SystemRole.GERENTE,
       });
     });
 
@@ -155,6 +158,7 @@ describe('UsersService', () => {
         companyId: null,
         mustChangePassword: false,
         companyName: null,
+        role: SystemRole.FUNCIONARIO,
       });
     });
   });
