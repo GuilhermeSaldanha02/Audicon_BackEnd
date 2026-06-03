@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InfractionsService } from './infractions.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Infraction, InfractionStatus } from './entities/infraction.entity';
+import { InfractionSeverity } from './enums/infraction-severity.enum';
 import { UnitsService } from '../units/units.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
 import { AuditService } from '../audit/audit.service';
@@ -15,6 +16,7 @@ describe('InfractionsService', () => {
   const mockInfraction: Infraction = {
     id: 1,
     description: 'Desc',
+    severity: InfractionSeverity.MEDIA,
     formalDescription: 'Formal',
     suggestedPenalty: 'Warning',
     status: InfractionStatus.PENDING,
@@ -121,6 +123,20 @@ describe('InfractionsService', () => {
       (condos.findOne as jest.Mock).mockResolvedValue({ id: 5, companyId: 2 });
       await expect(service.create(dto, 1, false)).rejects.toThrow(
         /outra empresa/,
+      );
+    });
+    it('repassa a gravidade (severity) ao criar a infração', async () => {
+      const dto = {
+        description: 'Teste',
+        severity: InfractionSeverity.GRAVE,
+        unitId: 10,
+      } as any;
+      (units.findOne as jest.Mock).mockResolvedValue(mockInfraction.unit);
+      (repo.create as jest.Mock).mockReturnValue({ ...mockInfraction });
+      (repo.save as jest.Mock).mockResolvedValue({ ...mockInfraction });
+      await service.create(dto, null, true);
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: InfractionSeverity.GRAVE }),
       );
     });
   });

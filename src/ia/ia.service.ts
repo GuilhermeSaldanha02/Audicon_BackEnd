@@ -118,6 +118,7 @@ export class IaService implements OnModuleInit {
     if (hasReincidencias) {
       prompt = loadPromptTemplate(PROMPT_V3, {
         description: infraction.description,
+        severity: infraction.severity,
         regimento: hasRegimento
           ? regimentoText.slice(0, REGIMENTO_MAX_CHARS)
           : '(Regimento interno não cadastrado para este condomínio.)',
@@ -127,11 +128,13 @@ export class IaService implements OnModuleInit {
     } else if (hasRegimento) {
       prompt = loadPromptTemplate(PROMPT_V2, {
         description: infraction.description,
+        severity: infraction.severity,
         regimento: regimentoText.slice(0, REGIMENTO_MAX_CHARS),
       });
     } else {
       prompt = loadPromptTemplate(PROMPT_V1, {
         description: infraction.description,
+        severity: infraction.severity,
       });
     }
     this.logger.log(

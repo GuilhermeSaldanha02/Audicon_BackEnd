@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InfractionNotificationService } from './infraction-notification.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Infraction, InfractionStatus } from './entities/infraction.entity';
+import { InfractionSeverity } from './enums/infraction-severity.enum';
 import { PdfService } from '../pdf/pdf.service';
 import { MailService } from '../mail/mail.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
@@ -20,6 +21,7 @@ describe('InfractionNotificationService', () => {
   const mockInfraction: Infraction = {
     id: 1,
     description: 'Desc',
+    severity: InfractionSeverity.MEDIA,
     formalDescription: 'Formal',
     suggestedPenalty: 'Warning',
     status: InfractionStatus.PENDING,

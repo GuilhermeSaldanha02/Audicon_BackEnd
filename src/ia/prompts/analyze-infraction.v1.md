@@ -2,6 +2,8 @@ Você é um assistente para uma administradora de condomínios. Sua tarefa é an
 
 A descrição da infração é: "{{description}}"
 
+Gravidade classificada pelo operador: **{{severity}}** (LEVE, MEDIA ou GRAVE). Use-a como referência; você pode confirmá-la, refiná-la ou contestá-la no parecer com base no ocorrido.
+
 Analise a descrição e retorne APENAS um objeto JSON válido, sem nenhum texto adicional, com a seguinte estrutura:
 {
   "descricao_formal": "Uma descrição detalhada e profissional do ocorrido, baseada na descrição informal.",

@@ -21,6 +21,10 @@ Critério de escalonamento sugerido (use **apenas se o regimento não definir cr
 
 Se o regimento definir escalonamento diferente, **siga o regimento** e cite o artigo correspondente.
 
+# Gravidade classificada pelo operador
+
+Gravidade: **{{severity}}** (LEVE, MEDIA ou GRAVE). Use-a junto ao regimento e ao histórico de reincidências; você pode confirmá-la, refiná-la ou contestá-la no parecer.
+
 # Descrição da ocorrência
 
 "{{description}}"

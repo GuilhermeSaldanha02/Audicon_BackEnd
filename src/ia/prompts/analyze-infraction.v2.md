@@ -8,6 +8,10 @@ A seguir está o regimento do condomínio (extraído do PDF cadastrado). Use-o c
 {{regimento}}
 ---
 
+# Gravidade classificada pelo operador
+
+Gravidade: **{{severity}}** (LEVE, MEDIA ou GRAVE). Use-a como referência; você pode confirmá-la, refiná-la ou contestá-la no parecer com base no regimento e no ocorrido.
+
 # Descrição da ocorrência
 
 "{{description}}"
