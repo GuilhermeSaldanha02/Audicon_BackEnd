@@ -14,7 +14,7 @@ import {
 import {
   ApiTags,
   ApiOperation,
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiResponse,
   ApiParam,
 } from '@nestjs/swagger';
@@ -32,9 +32,13 @@ import { InfractionQueryDto } from './dto/infraction-query.dto';
 import { CsvExportQueryDto } from './dto/csv-export-query.dto';
 import { CurrentActor } from 'src/common/decorators/current-actor.decorator';
 import { Actor } from 'src/audit/audit.service';
+import {
+  InfractionResponseDto,
+  PaginatedInfractionsDto,
+} from './dto/infraction-response.dto';
 
 @ApiTags('Infractions')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('infractions')
 export class InfractionsController {
@@ -48,6 +52,7 @@ export class InfractionsController {
   @ApiResponse({
     status: 201,
     description: 'Infração criada com status pending',
+    type: InfractionResponseDto,
   })
   @Post()
   create(@CurrentActor() actor: Actor, @Body() dto: CreateInfractionDto) {
@@ -60,7 +65,11 @@ export class InfractionsController {
   }
 
   @ApiOperation({ summary: 'Listar infrações (filtrar por unidade, paginado)' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de infrações' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de infrações',
+    type: PaginatedInfractionsDto,
+  })
   @Get()
   findAll(@CurrentActor() actor: Actor, @Query() query: InfractionQueryDto) {
     const { unitId, ...pagination } = query;
@@ -89,7 +98,11 @@ export class InfractionsController {
 
   @ApiOperation({ summary: 'Buscar infração por ID' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'Infração encontrada' })
+  @ApiResponse({
+    status: 200,
+    description: 'Infração encontrada',
+    type: InfractionResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Infração não encontrada' })
   @UseGuards(InfractionAccessGuard)
   @Get(':id')
@@ -104,6 +117,7 @@ export class InfractionsController {
   @ApiResponse({
     status: 200,
     description: 'Infração analisada, status → analyzed',
+    type: InfractionResponseDto,
   })
   @ApiResponse({
     status: 429,
@@ -148,6 +162,7 @@ export class InfractionsController {
   @ApiResponse({
     status: 200,
     description: 'Infração aprovada, status → approved',
+    type: InfractionResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -172,6 +187,7 @@ export class InfractionsController {
   @ApiResponse({
     status: 200,
     description: 'E-mail enviado, status → sent',
+    type: InfractionResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -193,6 +209,7 @@ export class InfractionsController {
   @ApiResponse({
     status: 200,
     description: 'WhatsApp enviado, whatsappSentAt preenchido',
+    type: InfractionResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -210,7 +227,11 @@ export class InfractionsController {
 
   @ApiOperation({ summary: 'Atualizar infração' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'Infração atualizada' })
+  @ApiResponse({
+    status: 200,
+    description: 'Infração atualizada',
+    type: InfractionResponseDto,
+  })
   @UseGuards(InfractionAccessGuard)
   @Patch(':id')
   update(

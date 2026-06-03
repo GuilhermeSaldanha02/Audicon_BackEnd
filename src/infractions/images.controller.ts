@@ -11,7 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiBody,
   ApiConsumes,
   ApiOperation,
@@ -26,7 +26,7 @@ import { InfractionAccessGuard } from 'src/common/guards/infraction-access.guard
 import { ImagesService, MAX_IMAGE_BYTES } from './images.service';
 
 @ApiTags('Infraction Images')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard, InfractionAccessGuard)
 @Controller('infractions/:id/images')
 export class ImagesController {

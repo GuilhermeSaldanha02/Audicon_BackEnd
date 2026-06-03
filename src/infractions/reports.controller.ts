@@ -10,7 +10,7 @@ import {
 import {
   ApiTags,
   ApiOperation,
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiResponse,
   ApiParam,
 } from '@nestjs/swagger';
@@ -25,7 +25,7 @@ import { PdfService } from 'src/pdf/pdf.service';
 import { ReportQueryDto } from './dto/report-query.dto';
 
 @ApiTags('Reports')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, CondominiumAccessGuard)
 @Roles(SystemRole.GERENTE, SystemRole.FUNCIONARIO)
 @Controller('condominiums/:condominiumId/infractions')

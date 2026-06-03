@@ -17,7 +17,7 @@ import {
 import {
   ApiTags,
   ApiOperation,
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiResponse,
   ApiParam,
   ApiConsumes,
@@ -37,9 +37,13 @@ import { SystemRole } from '../common/enums/system-role.enum';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
+import {
+  CondominiumResponseDto,
+  PaginatedCondominiumsDto,
+} from './dto/condominium-response.dto';
 
 @ApiTags('Condominiums')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('condominiums')
 export class CondominiumsController {
@@ -48,7 +52,11 @@ export class CondominiumsController {
   @ApiOperation({
     summary: 'Criar condomínio para uma empresa (apenas master)',
   })
-  @ApiResponse({ status: 201, description: 'Condomínio criado' })
+  @ApiResponse({
+    status: 201,
+    description: 'Condomínio criado',
+    type: CondominiumResponseDto,
+  })
   @ApiResponse({ status: 403, description: 'Apenas master pode criar' })
   @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
   @UseGuards(MasterGuard)
@@ -64,6 +72,7 @@ export class CondominiumsController {
   @ApiResponse({
     status: 200,
     description: 'Lista paginada de condomínios do usuário',
+    type: PaginatedCondominiumsDto,
   })
   @Get()
   findAll(@CurrentActor() actor: Actor, @Query() pagination: PaginationDto) {
@@ -72,7 +81,11 @@ export class CondominiumsController {
 
   @ApiOperation({ summary: 'Buscar condomínio por ID' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'Condomínio encontrado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Condomínio encontrado',
+    type: CondominiumResponseDto,
+  })
   @ApiResponse({ status: 403, description: 'Sem acesso a este condomínio' })
   @ApiResponse({ status: 404, description: 'Condomínio não encontrado' })
   @UseGuards(RolesGuard, CondominiumAccessGuard)
@@ -84,7 +97,11 @@ export class CondominiumsController {
 
   @ApiOperation({ summary: 'Atualizar condomínio (requer ADMIN)' })
   @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'Condomínio atualizado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Condomínio atualizado',
+    type: CondominiumResponseDto,
+  })
   @ApiResponse({ status: 403, description: 'Apenas ADMIN pode editar' })
   @UseGuards(RolesGuard, CondominiumAccessGuard)
   @Roles(SystemRole.GERENTE)

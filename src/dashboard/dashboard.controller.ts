@@ -1,15 +1,16 @@
 import { Controller, Get, Request, UseGuards } from '@nestjs/common';
 import {
-  ApiBearerAuth,
+  ApiCookieAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { DashboardService } from './dashboard.service';
+import { DashboardResponseDto } from './dto/dashboard-response.dto';
 
 @ApiTags('Dashboard')
-@ApiBearerAuth()
+@ApiCookieAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('dashboard')
 export class DashboardController {
@@ -19,7 +20,11 @@ export class DashboardController {
     summary:
       'Métricas gerais (master vê tudo; não-master filtrado por empresa)',
   })
-  @ApiResponse({ status: 200, description: 'Métricas do dashboard' })
+  @ApiResponse({
+    status: 200,
+    description: 'Métricas do dashboard',
+    type: DashboardResponseDto,
+  })
   @Get()
   getMetrics(@Request() req: any) {
     return this.dashboardService.getMetrics(req.user);
