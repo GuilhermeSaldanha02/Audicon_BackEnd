@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InfractionAnalysisService } from './infraction-analysis.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Infraction, InfractionStatus } from './entities/infraction.entity';
+import { InfractionSeverity } from './enums/infraction-severity.enum';
 import { IaService } from '../ia/ia.service';
 
 describe('InfractionAnalysisService', () => {
@@ -13,6 +14,7 @@ describe('InfractionAnalysisService', () => {
   const mockInfraction: Infraction = {
     id: 1,
     description: 'Desc',
+    severity: InfractionSeverity.MEDIA,
     formalDescription: 'Formal',
     suggestedPenalty: 'Warning',
     status: InfractionStatus.PENDING,

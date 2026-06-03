@@ -1,5 +1,6 @@
 import { Unit } from '../../units/entities/unit.entity';
 import { InfractionImage } from './infraction-image.entity';
+import { InfractionSeverity } from '../enums/infraction-severity.enum';
 import {
   Column,
   CreateDateColumn,
@@ -22,6 +23,12 @@ export class Infraction {
   id: number;
   @Column({ type: 'text', comment: 'Informal description provided by staff.' })
   description: string;
+  @Column({
+    type: 'enum',
+    enum: InfractionSeverity,
+    comment: 'Severity classified by the operator at registration (required).',
+  })
+  severity: InfractionSeverity;
   @Column({
     type: 'text',
     nullable: true,

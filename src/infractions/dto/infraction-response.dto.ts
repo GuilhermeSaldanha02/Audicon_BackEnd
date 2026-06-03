@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { InfractionSeverity } from '../enums/infraction-severity.enum';
 
 export enum InfractionStatusEnum {
   PENDING = 'pending',
@@ -13,6 +14,9 @@ export class InfractionResponseDto {
 
   @ApiProperty()
   description: string;
+
+  @ApiProperty({ enum: InfractionSeverity })
+  severity: InfractionSeverity;
 
   @ApiProperty({ nullable: true, type: String })
   formalDescription: string | null;

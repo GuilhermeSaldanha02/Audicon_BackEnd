@@ -48,6 +48,7 @@ export class InfractionsService {
     }
     const infraction = this.infractionsRepository.create({
       description: dto.description,
+      severity: dto.severity,
       unit,
     });
     const saved = await this.infractionsRepository.save(infraction);

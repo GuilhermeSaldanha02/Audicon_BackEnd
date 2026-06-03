@@ -239,6 +239,7 @@ async function main() {
     cookie: adminCookie,
     body: {
       description: 'Morador toca som alto após 22h, perturbando vizinhos.',
+      severity: 'MEDIA',
       unitId,
     },
   });
