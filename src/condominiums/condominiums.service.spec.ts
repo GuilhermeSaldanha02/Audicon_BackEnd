@@ -107,6 +107,62 @@ describe('CondominiumsService', () => {
       condoRepo.save.mockRejectedValue(genericError);
       await expect(service.create(dto)).rejects.toThrow(genericError);
     });
+
+    it('GERENTE: força a própria empresa (ignora companyId do body)', async () => {
+      const dto: any = {
+        name: 'Condo G',
+        cnpj: '22.222.222/2222-22',
+        companyId: 999,
+      };
+      const gerente: any = {
+        userId: 3,
+        email: 'g@x.com',
+        isMaster: false,
+        companyId: 5,
+      };
+      condoRepo.create.mockImplementation((v: any) => v);
+      condoRepo.save.mockImplementation(async (v: any) => ({ id: 1, ...v }));
+
+      const result = await service.create(dto, gerente);
+      expect(condoRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ companyId: 5 }),
+      );
+      expect(result.companyId).toBe(5);
+    });
+
+    it('MASTER: usa o companyId do body', async () => {
+      const dto: any = {
+        name: 'Condo M',
+        cnpj: '33.333.333/3333-33',
+        companyId: 7,
+      };
+      const master: any = {
+        userId: 1,
+        email: 'm@x.com',
+        isMaster: true,
+        companyId: null,
+      };
+      condoRepo.create.mockImplementation((v: any) => v);
+      condoRepo.save.mockImplementation(async (v: any) => ({ id: 1, ...v }));
+
+      const result = await service.create(dto, master);
+      expect(condoRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ companyId: 7 }),
+      );
+      expect(result.companyId).toBe(7);
+    });
+
+    it('MASTER sem companyId no body → BadRequest', async () => {
+      const dto: any = { name: 'Condo X', cnpj: '44.444.444/4444-44' };
+      const master: any = {
+        userId: 1,
+        email: 'm@x.com',
+        isMaster: true,
+        companyId: null,
+      };
+      await expect(service.create(dto, master)).rejects.toThrow(/companyId/i);
+      expect(condoRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('findAll', () => {

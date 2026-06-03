@@ -50,16 +50,25 @@ export class CondominiumsController {
   constructor(private readonly condominiumsService: CondominiumsService) {}
 
   @ApiOperation({
-    summary: 'Criar condomínio para uma empresa (apenas master)',
+    summary: 'Criar condomínio (master para qualquer empresa; gerente na sua)',
+    description:
+      'MASTER cria para qualquer empresa (companyId no body, obrigatório). ' +
+      'GERENTE cria apenas na própria empresa (companyId vem do token, o do ' +
+      'body é ignorado). FUNCIONARIO não pode criar.',
   })
   @ApiResponse({
     status: 201,
     description: 'Condomínio criado',
     type: CondominiumResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Apenas master pode criar' })
+  @ApiResponse({ status: 400, description: 'companyId ausente (master)' })
+  @ApiResponse({
+    status: 403,
+    description: 'Papel sem permissão (funcionário)',
+  })
   @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
-  @UseGuards(MasterGuard)
+  @UseGuards(RolesGuard)
+  @Roles(SystemRole.MASTER, SystemRole.GERENTE)
   @Post()
   create(
     @CurrentActor() actor: Actor,

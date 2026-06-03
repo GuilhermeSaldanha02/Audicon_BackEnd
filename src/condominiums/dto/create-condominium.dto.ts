@@ -1,10 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateCondominiumDto {
-  @ApiProperty({ example: 1, description: 'ID da empresa dona do condomínio' })
+  @ApiProperty({
+    required: false,
+    example: 1,
+    description:
+      'ID da empresa dona do condomínio. Obrigatório para master; ' +
+      'ignorado para gerente (usa sempre a própria empresa, do token).',
+  })
+  @IsOptional()
   @IsInt()
-  companyId: number;
+  companyId?: number;
 
   @ApiProperty({ example: 'Condomínio Jardim das Flores' })
   @IsString()

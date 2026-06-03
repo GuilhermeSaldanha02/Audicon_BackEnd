@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -26,9 +27,24 @@ export class CondominiumsService {
   ) {}
 
   async create(createCondominiumDto: CreateCondominiumDto, actor?: Actor) {
+    // RBAC de tenant na criação: gerente cria sempre na própria empresa
+    // (companyId vem do token, ignora o body); master escolhe a empresa pelo
+    // body (obrigatório). FUNCIONARIO já é barrado pelo RolesGuard.
+    const companyId =
+      actor && !actor.isMaster
+        ? actor.companyId
+        : createCondominiumDto.companyId;
+    if (companyId == null) {
+      throw new BadRequestException(
+        'companyId é obrigatório para criar um condomínio.',
+      );
+    }
     try {
       const saved = await this.condominiumsRepository.save(
-        this.condominiumsRepository.create(createCondominiumDto),
+        this.condominiumsRepository.create({
+          ...createCondominiumDto,
+          companyId,
+        }),
       );
 
       if (actor) {
