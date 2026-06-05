@@ -144,22 +144,6 @@ export class CompaniesService {
     };
   }
 
-  async listEmployees(
-    companyId: number,
-  ): Promise<Array<{ id: number; nome: string; email: string }>> {
-    if (!companyId) {
-      throw new BadRequestException(
-        'Solicitante não está vinculado a uma empresa.',
-      );
-    }
-    const users = await this.usersRepository.find({
-      where: { companyId, isMaster: false },
-      select: ['id', 'nome', 'email'],
-      order: { id: 'ASC' },
-    });
-    return users;
-  }
-
   async listUsersOfCompany(
     companyId: number,
   ): Promise<

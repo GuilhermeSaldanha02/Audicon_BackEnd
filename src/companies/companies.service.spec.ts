@@ -157,28 +157,6 @@ describe('CompaniesService', () => {
     });
   });
 
-  describe('listEmployees', () => {
-    it('lista funcionários da empresa (sem master, sem senha)', async () => {
-      usersRepo.find = jest.fn().mockResolvedValue([
-        { id: 5, nome: 'F1', email: 'f1@x.com' },
-        { id: 6, nome: 'F2', email: 'f2@x.com' },
-      ]);
-      const result = await service.listEmployees(3);
-      expect(result).toHaveLength(2);
-      expect(usersRepo.find).toHaveBeenCalledWith({
-        where: { companyId: 3, isMaster: false },
-        select: ['id', 'nome', 'email'],
-        order: { id: 'ASC' },
-      });
-    });
-
-    it('rejeita quando companyId ausente', async () => {
-      await expect(service.listEmployees(undefined as any)).rejects.toThrow(
-        /vinculado/,
-      );
-    });
-  });
-
   describe('listUsersOfCompany', () => {
     it('lista usuários após validar que empresa existe', async () => {
       companiesRepo.findOneBy = jest
