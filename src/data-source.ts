@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import 'dotenv/config';
+import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { Company } from './companies/entities/company.entity';
@@ -26,7 +27,11 @@ const appDataSourceOptions = {
     InfractionImage,
     User,
   ],
-  migrations: ['src/migrations/*.ts'],
+  // Resolvido via __dirname para funcionar nos dois mundos (caminho A do R-14):
+  // dev/ts-node → __dirname=src → casa *.ts; prod/compilado → __dirname=dist →
+  // casa *.js. Sem isso, rodar do dist/data-source.js tenta require um .ts (falha
+  // sem ts-node) ou, no runner sem src/, casa zero migrations (no-op silencioso).
+  migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
   synchronize: false,
   logging: false,
 };
