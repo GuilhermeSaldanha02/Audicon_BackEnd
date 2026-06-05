@@ -186,13 +186,17 @@ describe('CompaniesService', () => {
         .mockResolvedValue({ id: 7, name: 'Empresa X' });
       usersRepo.find = jest
         .fn()
-        .mockResolvedValue([{ id: 9, nome: 'Admin', email: 'a@x.com' }]);
+        .mockResolvedValue([
+          { id: 9, nome: 'Admin', email: 'a@x.com', role: SystemRole.GERENTE },
+        ]);
       const result = await service.listUsersOfCompany(7);
       expect(companiesRepo.findOneBy).toHaveBeenCalledWith({ id: 7 });
       expect(result).toHaveLength(1);
+      expect(result[0].role).toBe(SystemRole.GERENTE);
+      // R-15: select agora inclui role.
       expect(usersRepo.find).toHaveBeenCalledWith({
         where: { companyId: 7, isMaster: false },
-        select: ['id', 'nome', 'email'],
+        select: ['id', 'nome', 'email', 'role'],
         order: { id: 'ASC' },
       });
     });

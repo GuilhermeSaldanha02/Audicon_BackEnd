@@ -162,11 +162,14 @@ export class CompaniesService {
 
   async listUsersOfCompany(
     companyId: number,
-  ): Promise<Array<{ id: number; nome: string; email: string }>> {
+  ): Promise<
+    Array<{ id: number; nome: string; email: string; role: SystemRole }>
+  > {
     await this.findOne(companyId);
     const users = await this.usersRepository.find({
       where: { companyId, isMaster: false },
-      select: ['id', 'nome', 'email'],
+      // R-15: inclui role para o front diferenciar GERENTE de FUNCIONARIO.
+      select: ['id', 'nome', 'email', 'role'],
       order: { id: 'ASC' },
     });
     return users;

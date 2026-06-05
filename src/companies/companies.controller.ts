@@ -22,15 +22,26 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MasterGuard } from '../common/guards/master.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { CompanyAccessGuard } from '../common/guards/company-access.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { SystemRole } from '../common/enums/system-role.enum';
 import { CompaniesService } from './companies.service';
 import { CondominiumsService } from '../condominiums/condominiums.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import {
+  CompanyUserResponseDto,
+  CreatedEmployeeResponseDto,
+} from './dto/company-user-response.dto';
 import { Patch } from '@nestjs/common';
 
-@ApiTags('Companies (master only)')
+// Autenticação para todas as rotas (JwtAuthGuard na classe). A AUTORIZAÇÃO é por
+// rota: a maioria é master-only (MasterGuard); as duas rotas de funcionários da
+// empresa (POST/GET :companyId/users) são abertas a MASTER e GERENTE — ver §2.3.
+@ApiTags('Companies')
 @ApiCookieAuth()
-@UseGuards(JwtAuthGuard, MasterGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('companies')
 export class CompaniesController {
   constructor(
@@ -52,6 +63,7 @@ export class CompaniesController {
     description: 'Apenas master pode criar empresas',
   })
   @ApiResponse({ status: 409, description: 'CNPJ ou e-mail já cadastrados' })
+  @UseGuards(MasterGuard)
   @Post()
   create(@CurrentActor() actor: Actor, @Body() dto: CreateCompanyDto) {
     return this.companiesService.create(dto, actor);
@@ -63,6 +75,7 @@ export class CompaniesController {
     description: 'Lista de empresas',
     type: [CompanyResponseDto],
   })
+  @UseGuards(MasterGuard)
   @Get()
   findAll() {
     return this.companiesService.findAll();
@@ -75,17 +88,28 @@ export class CompaniesController {
     type: CompanyResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @UseGuards(MasterGuard)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.companiesService.findOne(id);
   }
 
   @ApiOperation({
-    summary:
-      'Listar usuários (admins/funcionários) de uma empresa (apenas master)',
+    summary: 'Listar usuários de uma empresa (master ou gerente da empresa)',
   })
-  @ApiResponse({ status: 200, description: 'Lista de usuários da empresa' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de usuários da empresa (inclui role)',
+    type: [CompanyUserResponseDto],
+  })
+  @ApiResponse({ status: 403, description: 'Papel ou empresa sem permissão' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  // Ordem dos guards é garantida pelo NestJS (array @UseGuards, da esquerda p/
+  // direita): RolesGuard roda ANTES do CompanyAccessGuard. RolesGuard barra o
+  // FUNCIONARIO (defesa em profundidade) — o CompanyAccessGuard sozinho NÃO o
+  // barraria na própria empresa, pois o companyId casa. Ver company-access.guard.
+  @UseGuards(RolesGuard, CompanyAccessGuard)
+  @Roles(SystemRole.MASTER, SystemRole.GERENTE)
   @Get(':companyId/users')
   listUsers(@Param('companyId', ParseIntPipe) companyId: number) {
     return this.companiesService.listUsersOfCompany(companyId);
@@ -95,6 +119,7 @@ export class CompaniesController {
     summary: 'Listar condomínios de uma empresa (apenas master)',
   })
   @ApiResponse({ status: 200, description: 'Lista de condomínios da empresa' })
+  @UseGuards(MasterGuard)
   @Get(':companyId/condominiums')
   listCondominiums(@Param('companyId', ParseIntPipe) companyId: number) {
     return this.condominiumsService.findByCompany(companyId);
@@ -108,6 +133,7 @@ export class CompaniesController {
   })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
   @ApiResponse({ status: 409, description: 'CNPJ já cadastrado' })
+  @UseGuards(MasterGuard)
   @Patch(':id')
   updateCompany(
     @Param('id', ParseIntPipe) id: number,
@@ -126,6 +152,7 @@ export class CompaniesController {
     status: 409,
     description: 'Empresa possui condomínios ativos',
   })
+  @UseGuards(MasterGuard)
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   remove(@CurrentActor() actor: Actor, @Param('id', ParseIntPipe) id: number) {
@@ -134,11 +161,23 @@ export class CompaniesController {
 
   @ApiOperation({
     summary:
-      'Criar usuário (funcionário/admin) para uma empresa (apenas master). Retorna senha temporária.',
+      'Criar funcionário de uma empresa (master ou gerente da empresa). ' +
+      'Sempre cria com role FUNCIONARIO. Retorna senha temporária.',
   })
-  @ApiResponse({ status: 201, description: 'Usuário criado' })
+  @ApiResponse({
+    status: 201,
+    description: 'Funcionário criado (role FUNCIONARIO)',
+    type: CreatedEmployeeResponseDto,
+  })
+  @ApiResponse({ status: 403, description: 'Papel ou empresa sem permissão' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
   @ApiResponse({ status: 409, description: 'E-mail já cadastrado' })
+  // Mesma blindagem da listagem: RolesGuard (antes) barra FUNCIONARIO;
+  // CompanyAccessGuard escopa o GERENTE à própria empresa. O role criado é
+  // sempre FUNCIONARIO (forçado no service; CreateEmployeeDto não tem `role` e
+  // o ValidationPipe rejeita campos não-whitelisted) — gerente não escala papel.
+  @UseGuards(RolesGuard, CompanyAccessGuard)
+  @Roles(SystemRole.MASTER, SystemRole.GERENTE)
   @Post(':companyId/users')
   createUser(
     @CurrentActor() actor: Actor,
@@ -158,6 +197,7 @@ export class CompaniesController {
   })
   @ApiResponse({ status: 403, description: 'Usuário não pertence à empresa' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @UseGuards(MasterGuard)
   @Post(':companyId/users/:userId/reset-password')
   resetUserPassword(
     @CurrentActor() actor: Actor,
