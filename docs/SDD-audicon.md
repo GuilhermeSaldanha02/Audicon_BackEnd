@@ -91,7 +91,15 @@ Dev: backend 3000, frontend 3001, via `NEXT_PUBLIC_API_URL`. Swagger/OpenAPI em 
 
 ### 3.4 Infração — modelo de dados
 
-Campos principais: `description`, `formalDescription`, `suggestedPenalty`, `status` (enum `InfractionStatus`: `pending`/`analyzed`/`approved`/`sent`), `severity` (enum `InfractionSeverity`: `LEVE`/`MEDIA`/`GRAVE`), `occurrenceDate`, `images[]`, `unit`. A IA recebe `severity` como contexto no prompt. **Vínculo com o autor:** infrações apontam para o usuário que as criou — por isso a remoção de funcionário é soft-delete (R-16), nunca hard-delete, para não orfanar o histórico de auditoria.
+Campos principais: `description`, `formalDescription`, `suggestedPenalty`, `status` (enum `InfractionStatus`: `pending`/`analyzed`/`approved`/`sent`), `severity` (enum `InfractionSeverity`: `LEVE`/`MEDIA`/`GRAVE`), `occurrenceDate`, `images[]`, `unit`. A IA recebe `severity` como contexto no prompt.
+
+**Correção (R-16) — `Infraction` NÃO tem FK para `User`.** A v3.2 afirmava que a remoção de funcionário é soft-delete "para não orfanar o histórico, pois a infração aponta para o autor". Isso está **errado e foi verificado no código**: `Infraction` referencia apenas `Unit` (`@ManyToOne(() => Unit)`), não o usuário criador; e o `audit_log` é **denormalizado** (`userId`/`userEmail` são colunas simples, sem FK). Logo, **nada orfanaria** ao remover um usuário. A decisão de usar soft-delete (R-16) continua correta, mas pelos motivos reais: (1) **revogação reversível** — desativar é a operação, não destruir; (2) **reativação futura** (Fase F); (3) **consistência** com `Condominium`/`Unit`/`Infraction`, que já usam `@DeleteDateColumn`; (4) **preservar o registro** do usuário. Mecanismo: `User.deletedAt` (`@DeleteDateColumn`), migration `AddUserSoftDelete`, backfill trivial (coluna nasce NULL = ativo).
+
+**Decisão de teste (PARADA 1) — `audit_log` intacto após desativar.** Na PARADA 1 foi pedido um teste "audit_log do desativado intacto". **Decidido NÃO testar via DB real** (todos os e2e do repo mockam repositórios; um teste real-DB só para isso seria inflar escopo — não foi esquecido, foi decidido). A propriedade é **garantida por construção**, não por teste: `deactivateEmployee` chama `softDelete(id)`, que faz `UPDATE "user" SET "deletedAt"=... WHERE id=...` — toca **somente** a tabela `user`; `audit_log` é denormalizado, sem FK nem cascade, então nenhuma linha de auditoria é afetada. O que de fato é testado: `deactivateEmployee` prova "soft, não hard" (`softDelete` chamado, `delete` físico não).
+
+**Limitações conhecidas do soft-delete de `User` (Fase F, fora do R-16):**
+- **E-mail preso.** Com `@DeleteDateColumn` + `unique` não-parcial em `email`, o e-mail de um usuário desativado **continua reservado a ele**: não pode ser reusado/recriado enquanto o registro existir. O `createEmployee` **normaliza** esse caso para `409 ConflictException` (rede de segurança em volta do `save`, mesma mensagem do pré-check de ativo — não vaza que o e-mail é de um desativado), então o front mostra "e-mail já em uso" em vez de um `500`/`23505` cru. **O que NÃO foi feito (decisão (i), Fase F):** permitir o *reuso* do e-mail ou *reativar* o usuário — só a higiene do erro entrou no R-16.
+- **Sem reativação.** Não há rota nem UI para reativar um funcionário desativado. Em produção isso é capenga (gerente desativa por engano → sem saída via produto). Vira melhoria de Fase F.
 
 ---
 
@@ -132,7 +140,7 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 | ID | Tarefa | Modelo | Status | PR |
 |---|---|---|---|---|
 | R-15 | GERENTE cria e lista funcionários da própria empresa; `role` na listagem; `CompanyAccessGuard` novo; remoção do `listEmployees` morto | Opus | **Mergeado** | Back #66 / Front #33 |
-| R-16 | GERENTE edita (nome/e-mail) e **desativa** (soft-delete) funcionários | Opus | **Em andamento** | — |
+| R-16 | GERENTE edita (nome/e-mail) e **desativa** (soft-delete) funcionários | Opus | **Backend implementado (PR aberto); front pós-PARADA 2** | — |
 | R-17 | MASTER promove/rebaixa o GERENTE da empresa | Opus | Planejado | — |
 
 **Detalhes R-15 (mergeado):** rotas `POST`/`GET /companies/:companyId/users` abertas a MASTER+GERENTE via `RolesGuard` + `CompanyAccessGuard` + `@Roles`. Defesa em profundidade: 2 e2e nomeados "FUNCIONÁRIO na própria empresa → 403". Escalonamento bloqueado: `role` forçado a FUNCIONARIO no service; `role` no body → 400 (whitelist). `listUsersOfCompany` retorna `role`. `CompanyUserResponseDto`/`CreatedEmployeeResponseDto` para o OpenAPI; tipos do front regenerados. Tela `/company/employees` (espelha condomínios) — resolve o 404/"tela preta". Removido `listEmployees` (código morto sem call-site, lia por `where { companyId }` sem guard — risco de vazamento cross-tenant se plugado em rota futura).
@@ -140,11 +148,14 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 **Detalhes R-16 (em andamento) — decisões travadas:**
 - "Remover" = **soft-delete (desativar)**. Registro permanece; acesso revogado; infrações do funcionário continuam íntegras (preserva auditoria). NUNCA hard-delete.
 - "Editar" = **nome e e-mail apenas**. `role` nunca editável (seria escalonamento). Whitelist barra extras → 400.
-- **PARADA 1 (crítica, backend):** revogação real do acesso — a `JwtStrategy`/guard precisa recusar usuário desativado a cada request (cookie/JWT já emitido continuaria válido até expirar). Login de usuário desativado → falha. Investigar mecanismo de soft-delete no `User` entity (flag `isActive` vs `@DeleteDateColumn`), migration com backfill.
-- **PARADA 2 (design, frontend):** espelhar padrão de condomínios; ação "Desativar" (não "Excluir"), com confirmação; editar sem campo `role`.
-- Escopo de alvo: GERENTE só edita/desativa FUNCIONÁRIO da própria empresa (não a si, não outro GERENTE/MASTER).
+- **PARADA 1 (crítica, backend) — RESOLVIDA.** Revogação real em **dois legs com checagem explícita** (não dependente do auto-filtro de soft-delete do TypeORM, que é versão-dependente): (a) **login** — `auth.service.validateUser` rejeita `if (user.deletedAt) return null` → 401; (b) **request autenticado** — `JwtStrategy.validate` rejeita `if (!user || user.deletedAt)` → 401 (o `findOneById`/`findOneBy` já auto-filtra; o `|| deletedAt` é defesa em profundidade gratuita). Sem custo de query novo: a `JwtStrategy` já fazia lookup do user por request. Mecanismo escolhido: **`@DeleteDateColumn`** (fail-safe — esconder/rejeitar o desativado é o padrão automático; vazar exige `.withDeleted()` explícito) sobre flag `isActive`. Migration `AddUserSoftDelete` escrita à mão (a auto-gerada vinha poluída e dropava a trava de Gerente único — descartada).
+- **Rotas (backend):** `PATCH /companies/:companyId/users/:userId` (editar nome/e-mail) e `DELETE /companies/:companyId/users/:userId` (desativar), ambas com `RolesGuard` + `CompanyAccessGuard` + `@Roles(MASTER, GERENTE)` (mesma blindagem do R-15). `UpdateEmployeeDto { nome?, email? }` sem `role` (whitelist → 400). Listagem ganhou `?includeInactive=true` (`withDeleted`) e `deletedAt` no `CompanyUserResponseDto`. Audit: ações novas `EMPLOYEE_UPDATED` e `EMPLOYEE_DEACTIVATED`.
+- **PARADA 2 (design, frontend):** espelhar padrão de condomínios; ação "Desativar" (não "Excluir"), com confirmação; editar sem campo `role`. **Aguardando OK antes de tocar o front.**
+- Escopo de alvo: GERENTE/MASTER só edita/desativa **FUNCIONÁRIO** da própria empresa (não a si, não outro GERENTE/MASTER) — aplicado no service (`findManageableEmployee`).
 
 **Detalhes R-17 (planejado):** MASTER concede/revoga o papel de GERENTE de uma empresa. Toca a trava de "um GERENTE por empresa" (índice único parcial) + RBAC. Modo Opus, Discovery antes. Por último por ser a mais sensível.
+
+> ⚠️ **Armadilha herdada do R-16 (anotada enquanto fresca):** a trava "um GERENTE por empresa" é um **índice único PARCIAL no banco** (`UQ_user_one_gerente_per_company ... WHERE role = 'GERENTE'`). Esse índice enxerga a **linha física**, não o soft-delete do TypeORM: um GERENTE **soft-deleted ainda ocupa a vaga** do índice. Não morde no R-16 (o alvo de editar/desativar é só FUNCIONARIO), mas é armadilha direta no R-17 quando o MASTER trocar de Gerente — desativar o Gerente atual e tentar promover outro vai colidir no índice (`23505`) porque o desativado continua contando. O R-17 precisará lidar com isso (ex.: índice parcial que também exija `deletedAt IS NULL`, ou hard-handover transacional).
 
 ### Fase D — Deploy
 

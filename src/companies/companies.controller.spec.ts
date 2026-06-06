@@ -118,8 +118,8 @@ describe('CompaniesController', () => {
     service.listUsersOfCompany.mockResolvedValue([
       { id: 1, nome: 'A', email: 'a@x.com' },
     ]);
-    const result = await controller.listUsers(7);
-    expect(service.listUsersOfCompany).toHaveBeenCalledWith(7);
+    const result = await controller.listUsers(7, false);
+    expect(service.listUsersOfCompany).toHaveBeenCalledWith(7, false);
     expect(result).toHaveLength(1);
   });
 

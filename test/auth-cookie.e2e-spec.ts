@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 
@@ -24,6 +24,7 @@ const PASSWORD = 'S3nh@Segura';
 
 describe('Auth por cookie httpOnly (e2e) — R-08', () => {
   let app: INestApplication;
+  let jwt: JwtService;
 
   const user = {
     id: 1,
@@ -33,13 +34,34 @@ describe('Auth por cookie httpOnly (e2e) — R-08', () => {
     companyId: 7,
     mustChangePassword: false,
     senha: bcrypt.hashSync(PASSWORD, 10),
+    deletedAt: null,
+  };
+
+  // R-16 — usuário desativado (soft-delete). Mantém a senha correta de propósito:
+  // a revogação NÃO pode depender da senha, e sim de `deletedAt`.
+  const deactivated = {
+    id: 2,
+    email: 'desativado@email.com',
+    nome: 'Ex-Func',
+    isMaster: false,
+    companyId: 7,
+    mustChangePassword: false,
+    senha: bcrypt.hashSync(PASSWORD, 10),
+    deletedAt: new Date(),
+  };
+
+  const byEmail: Record<string, any> = {
+    [user.email]: user,
+    [deactivated.email]: deactivated,
+  };
+  const byId: Record<number, any> = {
+    [user.id]: user,
+    [deactivated.id]: deactivated,
   };
 
   const usersServiceMock = {
-    findOneByEmail: jest.fn(async (email: string) =>
-      email === user.email ? user : null,
-    ),
-    findOneById: jest.fn(async (id: number) => (id === user.id ? user : null)),
+    findOneByEmail: jest.fn(async (email: string) => byEmail[email] ?? null),
+    findOneById: jest.fn(async (id: number) => byId[id] ?? null),
     getProfile: jest.fn(async () => ({
       nome: user.nome,
       email: user.email,
@@ -80,6 +102,7 @@ describe('Auth por cookie httpOnly (e2e) — R-08', () => {
     app = moduleFixture.createNestApplication();
     setupApp(app);
     await app.init();
+    jwt = moduleFixture.get(JwtService);
   });
 
   afterAll(async () => {
@@ -141,6 +164,31 @@ describe('Auth por cookie httpOnly (e2e) — R-08', () => {
       .send({ email: user.email, password: 'errada' })
       .expect(401);
     expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  // ===== R-16 — revogação real de acesso de usuário desativado (PARADA 1) =====
+
+  it('PARADA 1 (b): login de usuário DESATIVADO → 401 (mesmo com a senha correta)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: deactivated.email, password: PASSWORD })
+      .expect(401);
+    // não vaza cookie para o desativado
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('PARADA 1 (a): request autenticado com JWT válido de usuário DESATIVADO → 401 (revogado no próximo request)', async () => {
+    // Forja um cookie como se tivesse sido emitido ANTES da desativação (JWT
+    // ainda dentro da validade). A revogação real acontece na JwtStrategy, que
+    // recarrega o user e recusa por deletedAt — não espera o token expirar.
+    const cookie = `access_token=${jwt.sign({
+      sub: deactivated.id,
+      email: deactivated.email,
+    })}`;
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/profile')
+      .set('Cookie', cookie)
+      .expect(401);
   });
 
   it('logout limpa o cookie (200, Set-Cookie expira access_token)', async () => {

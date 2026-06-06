@@ -14,6 +14,15 @@ export class CompanyUserResponseDto {
 
   @ApiProperty({ enum: SystemRole })
   role: SystemRole;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'R-16: data de desativação (soft-delete). NULL = ativo. Só aparece ' +
+      'preenchido quando a listagem é chamada com ?includeInactive=true.',
+  })
+  deletedAt: Date | null;
 }
 
 /** Retorno de POST /companies/:id/users — inclui a senha temporária gerada. */

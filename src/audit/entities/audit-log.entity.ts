@@ -17,6 +17,8 @@ export type AuditAction =
   | 'COMPANY_CREATED'
   | 'COMPANY_DELETED'
   | 'EMPLOYEE_CREATED'
+  | 'EMPLOYEE_UPDATED'
+  | 'EMPLOYEE_DEACTIVATED'
   | 'EMPLOYEE_PASSWORD_RESET';
 
 export type AuditEntity = 'infraction' | 'condominium' | 'company' | 'employee';

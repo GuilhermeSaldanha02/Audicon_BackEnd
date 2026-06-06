@@ -10,7 +10,18 @@ export class AuthService {
   ) {}
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneByEmail(email);
-    if (user && (await bcrypt.compare(pass, user.senha))) {
+    if (!user) {
+      return null;
+    }
+    // R-16: revogação explícita de acesso de usuário desativado (soft-delete).
+    // Não dependemos só do auto-filtro de soft-delete do QueryBuilder (que é
+    // versão-dependente): mesmo que um upgrade do TypeORM passe a retornar a
+    // linha desativada, o login continua negado aqui. Ver jwt.strategy (leg do
+    // request autenticado) e SDD §2.4.
+    if (user.deletedAt) {
+      return null;
+    }
+    if (await bcrypt.compare(pass, user.senha)) {
       const result: any = { ...(user as any) };
       delete result.senha;
       return result;

@@ -31,7 +31,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
   async validate(payload: { sub: number; email: string }) {
     const user = await this.usersService.findOneById(payload.sub);
-    if (!user) {
+    // R-16: revogação real a cada request. `findOneById` (findOneBy) já auto-
+    // filtra usuários soft-deleted (desativado → undefined → 401). O
+    // `|| user.deletedAt` é defesa em profundidade gratuita, robusta a uma
+    // eventual mudança do auto-filtro do TypeORM. Login tem a checagem
+    // espelhada (auth.service.validateUser). Ver SDD §2.4.
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException('Token inválido.');
     }
     // findOneById não faz addSelect da senha (select:false na entity), então

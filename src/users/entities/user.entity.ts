@@ -1,6 +1,7 @@
 import {
   BeforeInsert,
   Column,
+  DeleteDateColumn,
   Entity,
   Index,
   ManyToOne,
@@ -41,6 +42,13 @@ export class User {
 
   @Column({ type: 'integer', nullable: true })
   companyId: number | null;
+
+  // R-16: soft-delete (desativação) de funcionário. NULL = ativo. O TypeORM
+  // filtra linhas com deletedAt preenchido automaticamente em find*; a revogação
+  // de acesso (login + request) NÃO depende só desse auto-filtro — há checagem
+  // explícita de `deletedAt` no login (auth.service) e na JwtStrategy.
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 
   @BeforeInsert()
   async hashSenha() {
