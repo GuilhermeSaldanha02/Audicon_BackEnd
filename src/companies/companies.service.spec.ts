@@ -35,7 +35,9 @@ describe('CompaniesService', () => {
             create: jest.fn((dto) => dto),
             save: jest.fn(),
             findOne: jest.fn(),
+            find: jest.fn(),
             delete: jest.fn(),
+            softDelete: jest.fn(),
           },
         },
         {
@@ -171,12 +173,25 @@ describe('CompaniesService', () => {
       expect(companiesRepo.findOneBy).toHaveBeenCalledWith({ id: 7 });
       expect(result).toHaveLength(1);
       expect(result[0].role).toBe(SystemRole.GERENTE);
-      // R-15: select agora inclui role.
+      // R-15: select inclui role. R-16: inclui deletedAt e withDeleted=false
+      // por padrão (só ativos).
       expect(usersRepo.find).toHaveBeenCalledWith({
         where: { companyId: 7, isMaster: false },
-        select: ['id', 'nome', 'email', 'role'],
+        select: ['id', 'nome', 'email', 'role', 'deletedAt'],
         order: { id: 'ASC' },
+        withDeleted: false,
       });
+    });
+
+    it('R-16: includeInactive=true → withDeleted true (mostra desativados)', async () => {
+      companiesRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 7, name: 'Empresa X' });
+      usersRepo.find = jest.fn().mockResolvedValue([]);
+      await service.listUsersOfCompany(7, true);
+      expect(usersRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ withDeleted: true }),
+      );
     });
 
     it('lança 404 quando empresa não existe', async () => {
@@ -184,6 +199,133 @@ describe('CompaniesService', () => {
       await expect(service.listUsersOfCompany(999)).rejects.toThrow(
         /não encontrada/i,
       );
+    });
+  });
+
+  describe('updateEmployee (R-16)', () => {
+    const actor = {
+      userId: 2,
+      email: 'gerente@x.com',
+      isMaster: false,
+      companyId: 1,
+    };
+    const funcionario = {
+      id: 5,
+      companyId: 1,
+      isMaster: false,
+      role: SystemRole.FUNCIONARIO,
+      nome: 'Antigo',
+      email: 'antigo@x.com',
+    };
+
+    it('edita nome/email de FUNCIONARIO e registra audit EMPLOYEE_UPDATED', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({ ...funcionario });
+      usersRepo.save.mockImplementation((u: any) => Promise.resolve(u));
+      const auditSpy = jest.spyOn(service['auditService'], 'log');
+      const result = await service.updateEmployee(
+        1,
+        5,
+        { nome: 'Novo', email: 'novo@x.com' },
+        actor as any,
+      );
+      expect(result).toMatchObject({
+        id: 5,
+        nome: 'Novo',
+        email: 'novo@x.com',
+        role: SystemRole.FUNCIONARIO,
+      });
+      expect(auditSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'EMPLOYEE_UPDATED', entityId: 5 }),
+      );
+    });
+
+    it('alvo GERENTE → Forbidden (não atinge outro gerente)', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({
+        ...funcionario,
+        role: SystemRole.GERENTE,
+      });
+      await expect(
+        service.updateEmployee(1, 5, { nome: 'X' }, actor as any),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('alvo master → Forbidden (MASTER não regride)', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({
+        ...funcionario,
+        isMaster: true,
+        role: SystemRole.MASTER,
+      });
+      await expect(
+        service.updateEmployee(1, 5, { nome: 'X' }, actor as any),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('alvo de OUTRA empresa → NotFound (não vaza existência cross-tenant)', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({ ...funcionario, companyId: 2 });
+      await expect(
+        service.updateEmployee(1, 5, { nome: 'X' }, actor as any),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('e-mail duplicado → ConflictException (23505)', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({ ...funcionario });
+      const driverError = Object.assign(new Error('dup'), { code: '23505' });
+      usersRepo.save.mockRejectedValue(
+        new QueryFailedError('UPDATE', [], driverError),
+      );
+      await expect(
+        service.updateEmployee(1, 5, { email: 'dup@x.com' }, actor as any),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('deactivateEmployee (R-16)', () => {
+    const actor = {
+      userId: 2,
+      email: 'gerente@x.com',
+      isMaster: false,
+      companyId: 1,
+    };
+    const funcionario = {
+      id: 5,
+      companyId: 1,
+      isMaster: false,
+      role: SystemRole.FUNCIONARIO,
+      nome: 'Func',
+      email: 'func@x.com',
+    };
+
+    it('soft-delete do FUNCIONARIO (softDelete, NÃO delete físico) + audit EMPLOYEE_DEACTIVATED', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({ ...funcionario });
+      const auditSpy = jest.spyOn(service['auditService'], 'log');
+      const result = await service.deactivateEmployee(1, 5, actor as any);
+      expect(result).toEqual({ id: 5 });
+      expect(usersRepo.softDelete).toHaveBeenCalledWith(5);
+      expect(usersRepo.delete).not.toHaveBeenCalled();
+      expect(auditSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'EMPLOYEE_DEACTIVATED',
+          entityId: 5,
+        }),
+      );
+    });
+
+    it('alvo GERENTE → Forbidden (não desativa outro gerente)', async () => {
+      companiesRepo.findOneBy.mockResolvedValue({ id: 1, name: 'X' });
+      usersRepo.findOne.mockResolvedValue({
+        ...funcionario,
+        role: SystemRole.GERENTE,
+      });
+      await expect(
+        service.deactivateEmployee(1, 5, actor as any),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(usersRepo.softDelete).not.toHaveBeenCalled();
     });
   });
 

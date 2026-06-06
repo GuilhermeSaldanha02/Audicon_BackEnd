@@ -1,22 +1,27 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseBoolPipe,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
 import { CompanyResponseDto } from './dto/company-response.dto';
 import {
   ApiCookieAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -104,6 +109,12 @@ export class CompaniesController {
   })
   @ApiResponse({ status: 403, description: 'Papel ou empresa sem permissão' })
   @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    type: Boolean,
+    description: 'R-16: inclui funcionários desativados (soft-deleted).',
+  })
   // Ordem dos guards é garantida pelo NestJS (array @UseGuards, da esquerda p/
   // direita): RolesGuard roda ANTES do CompanyAccessGuard. RolesGuard barra o
   // FUNCIONARIO (defesa em profundidade) — o CompanyAccessGuard sozinho NÃO o
@@ -111,8 +122,12 @@ export class CompaniesController {
   @UseGuards(RolesGuard, CompanyAccessGuard)
   @Roles(SystemRole.MASTER, SystemRole.GERENTE)
   @Get(':companyId/users')
-  listUsers(@Param('companyId', ParseIntPipe) companyId: number) {
-    return this.companiesService.listUsersOfCompany(companyId);
+  listUsers(
+    @Param('companyId', ParseIntPipe) companyId: number,
+    @Query('includeInactive', new DefaultValuePipe(false), ParseBoolPipe)
+    includeInactive: boolean,
+  ) {
+    return this.companiesService.listUsersOfCompany(companyId, includeInactive);
   }
 
   @ApiOperation({
@@ -185,6 +200,64 @@ export class CompaniesController {
     @Body() dto: CreateEmployeeDto,
   ) {
     return this.companiesService.createEmployee(companyId, dto, actor);
+  }
+
+  @ApiOperation({
+    summary:
+      'Editar nome/e-mail de um funcionário da empresa (master ou gerente da ' +
+      'empresa). `role` NÃO é editável (anti-escalonamento). Alvo só FUNCIONARIO.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Funcionário atualizado',
+    type: CompanyUserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Body inválido (ex.: campo `role`)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Papel/empresa sem permissão, ou alvo não é FUNCIONARIO',
+  })
+  @ApiResponse({ status: 404, description: 'Funcionário não encontrado' })
+  @ApiResponse({ status: 409, description: 'E-mail já em uso' })
+  // Mesma blindagem do R-15: RolesGuard (antes) barra FUNCIONARIO;
+  // CompanyAccessGuard escopa o GERENTE à própria empresa. O escopo do ALVO
+  // (só FUNCIONARIO da empresa, nunca master/gerente) é aplicado no service.
+  @UseGuards(RolesGuard, CompanyAccessGuard)
+  @Roles(SystemRole.MASTER, SystemRole.GERENTE)
+  @Patch(':companyId/users/:userId')
+  updateUser(
+    @CurrentActor() actor: Actor,
+    @Param('companyId', ParseIntPipe) companyId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() dto: UpdateEmployeeDto,
+  ) {
+    return this.companiesService.updateEmployee(companyId, userId, dto, actor);
+  }
+
+  @ApiOperation({
+    summary:
+      'Desativar (soft-delete) um funcionário da empresa (master ou gerente ' +
+      'da empresa). O registro permanece; o acesso é revogado. Alvo só FUNCIONARIO.',
+  })
+  @ApiResponse({ status: 200, description: 'Funcionário desativado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Papel/empresa sem permissão, ou alvo não é FUNCIONARIO',
+  })
+  @ApiResponse({ status: 404, description: 'Funcionário não encontrado' })
+  @UseGuards(RolesGuard, CompanyAccessGuard)
+  @Roles(SystemRole.MASTER, SystemRole.GERENTE)
+  @Delete(':companyId/users/:userId')
+  @HttpCode(HttpStatus.OK)
+  deactivateUser(
+    @CurrentActor() actor: Actor,
+    @Param('companyId', ParseIntPipe) companyId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.companiesService.deactivateEmployee(companyId, userId, actor);
   }
 
   @ApiOperation({

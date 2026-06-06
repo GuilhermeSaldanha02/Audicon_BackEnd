@@ -18,6 +18,7 @@ import { User } from '../users/entities/user.entity';
 import { Condominium } from '../condominiums/entities/condominium.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 export interface CreatedCompanyResult {
   company: Company;
@@ -146,17 +147,110 @@ export class CompaniesService {
 
   async listUsersOfCompany(
     companyId: number,
+    includeInactive = false,
   ): Promise<
-    Array<{ id: number; nome: string; email: string; role: SystemRole }>
+    Array<{
+      id: number;
+      nome: string;
+      email: string;
+      role: SystemRole;
+      deletedAt: Date | null;
+    }>
   > {
     await this.findOne(companyId);
     const users = await this.usersRepository.find({
       where: { companyId, isMaster: false },
       // R-15: inclui role para o front diferenciar GERENTE de FUNCIONARIO.
-      select: ['id', 'nome', 'email', 'role'],
+      // R-16: inclui deletedAt; por padrão o TypeORM esconde soft-deleted —
+      // só com includeInactive (withDeleted) os desativados aparecem.
+      select: ['id', 'nome', 'email', 'role', 'deletedAt'],
       order: { id: 'ASC' },
+      withDeleted: includeInactive,
     });
     return users;
+  }
+
+  /**
+   * R-16: localiza o FUNCIONARIO-alvo de uma operação de gestão (editar/
+   * desativar), aplicando o escopo de alvo:
+   * - empresa precisa existir (404);
+   * - alvo precisa existir E pertencer à empresa do path (senão 404 — não
+   *   vaza existência cross-tenant);
+   * - alvo NÃO pode ser master nem GERENTE (403) — "MASTER não regride" e o
+   *   Gerente não atinge a si nem outro Gerente por esta rota.
+   *
+   * Usa find* (auto-filtra soft-deleted): um funcionário já desativado é
+   * tratado como inexistente (reativação fica para a Fase F).
+   */
+  private async findManageableEmployee(
+    companyId: number,
+    userId: number,
+  ): Promise<User> {
+    await this.findOne(companyId);
+    const target = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+    if (!target || target.companyId !== companyId) {
+      throw new NotFoundException(
+        `Funcionário #${userId} não encontrado nesta empresa.`,
+      );
+    }
+    if (target.isMaster || target.role !== SystemRole.FUNCIONARIO) {
+      throw new ForbiddenException(
+        'Apenas funcionários (role FUNCIONARIO) podem ser geridos por esta rota.',
+      );
+    }
+    return target;
+  }
+
+  async updateEmployee(
+    companyId: number,
+    userId: number,
+    dto: UpdateEmployeeDto,
+    actor: Actor,
+  ): Promise<{ id: number; nome: string; email: string; role: SystemRole }> {
+    const target = await this.findManageableEmployee(companyId, userId);
+    if (dto.nome !== undefined) target.nome = dto.nome;
+    if (dto.email !== undefined) target.email = dto.email;
+    try {
+      const saved = await this.usersRepository.save(target);
+      this.auditService.log({
+        actor,
+        action: 'EMPLOYEE_UPDATED',
+        entity: 'employee',
+        entityId: saved.id,
+        context: { nome: saved.nome, email: saved.email },
+      });
+      return {
+        id: saved.id,
+        nome: saved.nome,
+        email: saved.email,
+        role: saved.role,
+      };
+    } catch (err) {
+      throwOnUniqueViolation(err, 'E-mail já está em uso por outro usuário.');
+      throw err;
+    }
+  }
+
+  async deactivateEmployee(
+    companyId: number,
+    userId: number,
+    actor: Actor,
+  ): Promise<{ id: number }> {
+    const target = await this.findManageableEmployee(companyId, userId);
+    // Soft-delete: marca deletedAt, NÃO remove a linha. O acesso é revogado no
+    // próximo request/login (ver auth.service e jwt.strategy). Histórico de
+    // auditoria (audit_log denormalizado, sem FK) permanece intacto.
+    await this.usersRepository.softDelete(target.id);
+    this.auditService.log({
+      actor,
+      action: 'EMPLOYEE_DEACTIVATED',
+      entity: 'employee',
+      entityId: target.id,
+      context: { email: target.email, nome: target.nome },
+    });
+    return { id: target.id };
   }
 
   async resetPassword(opts: {

@@ -54,6 +54,19 @@ describe('AuthService', () => {
       expect(result).toBeNull();
       expect(bcrypt.compare).toHaveBeenCalledWith('wrong', user.senha);
     });
+    it('R-16: retorna null quando o usuário está desativado (deletedAt), MESMO com senha correta — sem nem chamar bcrypt', async () => {
+      const user: any = {
+        id: 9,
+        email: 'ex@example.com',
+        senha: 'hashed',
+        deletedAt: new Date(),
+      };
+      usersService.findOneByEmail.mockResolvedValue(user);
+      const result = await service.validateUser('ex@example.com', 'correct');
+      expect(result).toBeNull();
+      // a revogação é por deletedAt, não passa pela comparação de senha
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+    });
     it('deve retornar o usuário sem campo senha quando a validação for bem-sucedida', async () => {
       const user: any = {
         id: 1,
