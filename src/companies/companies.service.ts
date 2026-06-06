@@ -127,7 +127,22 @@ export class CompaniesService {
       mustChangePassword: true,
       role: SystemRole.FUNCIONARIO,
     });
-    const saved = await this.usersRepository.save(user);
+    let saved: User;
+    try {
+      saved = await this.usersRepository.save(user);
+    } catch (err) {
+      // R-16: rede de segurança para o "e-mail preso". O pré-check (findOne)
+      // NÃO enxerga usuários soft-deleted, então recriar com o e-mail de um
+      // funcionário desativado escaparia como 23505 cru (500). Normaliza para
+      // 409 com a MESMA mensagem do pré-check de ativo — sem vazar que o e-mail
+      // pertence a um desativado. Não é o fix de reuso/reativação (Fase F),
+      // só higiene de erro. (Também cobre corrida entre o check e o insert.)
+      throwOnUniqueViolation(
+        err,
+        `E-mail ${dto.email} já está em uso por outro usuário.`,
+      );
+      throw err;
+    }
     if (actor) {
       this.auditService.log({
         actor,

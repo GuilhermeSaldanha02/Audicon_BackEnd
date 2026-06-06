@@ -149,6 +149,18 @@ describe('CompaniesService', () => {
       ).rejects.toThrow(/já está em uso/);
     });
 
+    it('R-16: e-mail preso (soft-deleted) escapa do pré-check e vira 409 no save (não 500)', async () => {
+      // findOne não enxerga o soft-deleted → passa do pré-check
+      usersRepo.findOne = jest.fn().mockResolvedValue(null);
+      const driverError = Object.assign(new Error('dup'), { code: '23505' });
+      usersRepo.save.mockRejectedValue(
+        new QueryFailedError('INSERT', [], driverError),
+      );
+      await expect(
+        service.createEmployee(3, { nome: 'X', email: 'preso@empresa.com' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
     it('rejeita quando companyId ausente (master)', async () => {
       await expect(
         service.createEmployee(undefined as any, {
