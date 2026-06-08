@@ -1,7 +1,7 @@
 # SDD — Audicon (Backend + Web)
 **Spec-Driven Development Document**
-Versão: 3.3 · Última atualização: 2026-06-05
-Substitui a v3.2. Esta versão registra o achado de segurança da senha do Master, a inversão da ordem do deploy, e a nova Fase de gestão de usuários (R-15 a R-17).
+Versão: 3.4 · Última atualização: 2026-06-08
+Substitui a v3.3. Esta versão registra a conclusão da Fase G (R-16 e R-17 mergeados) — gestão de usuários completa; Fase G encerrada. Próximo e último passo: R-14 config de plataforma (Railway + Vercel).
 
 ---
 
@@ -9,18 +9,14 @@ Substitui a v3.2. Esta versão registra o achado de segurança da senha do Maste
 
 Fonte única de verdade para a continuidade do Audicon — `Audicon_BackEnd` e `Audicon_Web`. Conflito entre um pedido e o SDD → o agente **para e pergunta**, não improvisa.
 
-**O que mudou da v3.2 para a v3.3:**
-- **Ordem do deploy invertida.** A decisão foi subir o piloto só com as funcionalidades básicas completas. O R-14 (deploy) deixou de ser "o próximo passo" e passou a vir **depois** da gestão de usuários (R-15, R-16, R-17). Ver §7.
-- **Achado de segurança crítico (senha do Master) — resolvido.** Descoberto durante o Discovery de infra do R-14: o Master de produção nascia com uma senha pública versionada no git (migration legada `AddCompanyAndMasterUser`); o `SeedMasterFromEnv` validava `MASTER_PASSWORD` no boot mas não a aplicava. Corrigido via migration nova `UpdateMasterPasswordFromEnv` (decisão: sobrescrever o hash pela env no mesmo release, antes do tráfego). Ver §2.2 e §5 (R-14 parte segurança, mergeado).
-- **Nova Fase G — Gestão de usuários** (R-15, R-16, R-17), pré-requisito do piloto:
-  - **R-15 (completo):** GERENTE cria e lista funcionários da própria empresa; listagem retorna `role`; `CompanyAccessGuard` novo. PRs Back #66 / Front #33.
-  - **R-16 (em andamento):** GERENTE edita (nome/e-mail) e **desativa** (soft-delete) funcionários. Decisões travadas: soft-delete (nunca hard-delete, preserva auditoria); editar nunca toca `role`.
-  - **R-17 (planejado):** MASTER promove/rebaixa o GERENTE da empresa (toca a trava de Gerente único).
-- **Bug R-14 (deploy) parte código: mergeado.** Fix do `data-source.ts` (glob via `__dirname`, caminho A), script `migration:run:prod`, migration da senha do Master. PRs Back #65 / Front #32 (config de Vercel: `.env.example`, `engines`, `.nvmrc`). Falta a parte de **configuração de plataforma** (Railway/Vercel) — ver §5.
-- **Dois falsos-positivos esclarecidos (não eram bugs):** a "tela preta" ao clicar Funcionários como GERENTE era um 404 nativo do Next em dark mode (link da sidebar apontava para rota inexistente `/company/employees`, criada no R-15); o "e-mail não envia" local era o modo mock esperado (sem `RESEND_API_KEY`).
-- **Baseline de testes atualizada:** backend 383 unit / 67 e2e (após R-17).
+**O que mudou da v3.3 para a v3.4:**
+- **Fase G completa.** R-16 (Back #69 / Front #34) e R-17 (Back #70 / Front #36) mergeados em master. Gestão de usuários encerrada.
+- **R-16 (mergeado):** GERENTE edita (nome/e-mail) e desativa (soft-delete) funcionários. Revogação em dois legs: `validateUser` e `JwtStrategy.validate` checam `deletedAt` explicitamente. E-mail preso em unique não-parcial → 409 amigável.
+- **R-17 (mergeado):** MASTER promove/rebaixa o GERENTE da empresa. Migration `FixGerenteIndexSoftDelete` corrige índice parcial para `WHERE "role" = 'GERENTE' AND "deletedAt" IS NULL`; endpoint `PATCH /companies/:companyId/users/:userId/role` (MasterGuard); `useApiMutation` ganhou escape-hatch `onError → true` suprime toast genérico; botão "Atribuir admin" removido do front (rota nunca existiu). Ver detalhes completos em §5.
+- **Próximo e último passo:** R-14 config de plataforma (Railway + Vercel). Ver §5.
+- **Baseline de testes:** 383 unit / 67 e2e (12 suites).
 
-**Objetivo do projeto:** MVP para uso real com clientes. Meta da próxima entrega: gestão de usuários completa (R-15→R-17), depois deploy do piloto (R-14).
+**Objetivo do projeto:** MVP para uso real com clientes. Meta da próxima entrega: deploy do piloto (R-14 config de plataforma).
 
 ---
 
@@ -71,7 +67,7 @@ Criado pela migration de seed `SeedMasterFromEnv`, que lê `MASTER_EMAIL` e `MAS
 
 JWT em cookie `httpOnly`. Flags por ambiente: dev = `SameSite=Lax`, `Secure=false`; prod = `SameSite=None`, `Secure=true`. Token extraído do cookie pela `JwtStrategy` (cookieExtractor). `Authorization: Bearer` removido (big-bang, sem dual-mode). Logout via `POST /auth/logout` (limpa cookie). Claims no front hidratados via `GET /auth/profile` (fonte única). Frontend usa `axios` com `withCredentials: true`; downloads binários usam `credentials: 'include'`.
 
-**Ponto de atenção para o R-16 (desativação de usuário):** a `JwtStrategy` precisa recusar usuário desativado a cada request — desativar no banco não revoga o cookie/JWT já emitido, que continuaria válido até expirar. Ver R-16 (§5, PARADA 1).
+**Revogação de acesso (R-16 — implementada):** desativar um usuário não revoga o cookie/JWT já emitido, mas a `JwtStrategy` busca o usuário a cada request e rejeita se `deletedAt` estiver preenchido → 401 imediato. Novos logins também rejeitados via `validateUser`. Cookie expira naturalmente; acesso é negado antes disso.
 
 ---
 
@@ -140,22 +136,28 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 | ID | Tarefa | Modelo | Status | PR |
 |---|---|---|---|---|
 | R-15 | GERENTE cria e lista funcionários da própria empresa; `role` na listagem; `CompanyAccessGuard` novo; remoção do `listEmployees` morto | Opus | **Mergeado** | Back #66 / Front #33 |
-| R-16 | GERENTE edita (nome/e-mail) e **desativa** (soft-delete) funcionários | Opus | **Backend implementado (PR aberto); front pós-PARADA 2** | — |
-| R-17 | MASTER promove/rebaixa o GERENTE da empresa | Opus | Planejado | — |
+| R-16 | GERENTE edita (nome/e-mail) e **desativa** (soft-delete) funcionários | Opus | **Mergeado** | Back #69 / Front #34 |
+| R-17 | MASTER promove/rebaixa o GERENTE da empresa | Opus | **Mergeado** | Back #70 / Front #36 |
 
 **Detalhes R-15 (mergeado):** rotas `POST`/`GET /companies/:companyId/users` abertas a MASTER+GERENTE via `RolesGuard` + `CompanyAccessGuard` + `@Roles`. Defesa em profundidade: 2 e2e nomeados "FUNCIONÁRIO na própria empresa → 403". Escalonamento bloqueado: `role` forçado a FUNCIONARIO no service; `role` no body → 400 (whitelist). `listUsersOfCompany` retorna `role`. `CompanyUserResponseDto`/`CreatedEmployeeResponseDto` para o OpenAPI; tipos do front regenerados. Tela `/company/employees` (espelha condomínios) — resolve o 404/"tela preta". Removido `listEmployees` (código morto sem call-site, lia por `where { companyId }` sem guard — risco de vazamento cross-tenant se plugado em rota futura).
 
-**Detalhes R-16 (em andamento) — decisões travadas:**
+**Detalhes R-16 (mergeado — Back #69 / Front #34) — decisões arquiteturais:**
 - "Remover" = **soft-delete (desativar)**. Registro permanece; acesso revogado; infrações do funcionário continuam íntegras (preserva auditoria). NUNCA hard-delete.
 - "Editar" = **nome e e-mail apenas**. `role` nunca editável (seria escalonamento). Whitelist barra extras → 400.
-- **PARADA 1 (crítica, backend) — RESOLVIDA.** Revogação real em **dois legs com checagem explícita** (não dependente do auto-filtro de soft-delete do TypeORM, que é versão-dependente): (a) **login** — `auth.service.validateUser` rejeita `if (user.deletedAt) return null` → 401; (b) **request autenticado** — `JwtStrategy.validate` rejeita `if (!user || user.deletedAt)` → 401 (o `findOneById`/`findOneBy` já auto-filtra; o `|| deletedAt` é defesa em profundidade gratuita). Sem custo de query novo: a `JwtStrategy` já fazia lookup do user por request. Mecanismo escolhido: **`@DeleteDateColumn`** (fail-safe — esconder/rejeitar o desativado é o padrão automático; vazar exige `.withDeleted()` explícito) sobre flag `isActive`. Migration `AddUserSoftDelete` escrita à mão (a auto-gerada vinha poluída e dropava a trava de Gerente único — descartada).
-- **Rotas (backend):** `PATCH /companies/:companyId/users/:userId` (editar nome/e-mail) e `DELETE /companies/:companyId/users/:userId` (desativar), ambas com `RolesGuard` + `CompanyAccessGuard` + `@Roles(MASTER, GERENTE)` (mesma blindagem do R-15). `UpdateEmployeeDto { nome?, email? }` sem `role` (whitelist → 400). Listagem ganhou `?includeInactive=true` (`withDeleted`) e `deletedAt` no `CompanyUserResponseDto`. Audit: ações novas `EMPLOYEE_UPDATED` e `EMPLOYEE_DEACTIVATED`.
-- **PARADA 2 (design, frontend):** espelhar padrão de condomínios; ação "Desativar" (não "Excluir"), com confirmação; editar sem campo `role`. **Aguardando OK antes de tocar o front.**
-- Escopo de alvo: GERENTE/MASTER só edita/desativa **FUNCIONÁRIO** da própria empresa (não a si, não outro GERENTE/MASTER) — aplicado no service (`findManageableEmployee`).
+- **Revogação de acesso:** dois legs com checagem explícita: (a) **login** — `validateUser` rejeita `if (user.deletedAt) return null` → 401; (b) **request autenticado** — `JwtStrategy.validate` rejeita `if (!user || user.deletedAt)` → 401. Mecanismo: `@DeleteDateColumn` (fail-safe — esconder o desativado é o padrão; vazar exige `.withDeleted()` explícito). Migration `AddUserSoftDelete` escrita à mão (auto-gerada vinha poluída).
+- **Rotas:** `PATCH /companies/:companyId/users/:userId` (editar nome/e-mail) e `DELETE /companies/:companyId/users/:userId` (desativar), com `RolesGuard` + `CompanyAccessGuard` + `@Roles(MASTER, GERENTE)`. `UpdateEmployeeDto { nome?, email? }` sem `role` (whitelist → 400). Listagem ganhou `?includeInactive=true` e `deletedAt` no `CompanyUserResponseDto`. Audit: `EMPLOYEE_UPDATED` e `EMPLOYEE_DEACTIVATED`.
+- **Escopo de alvo:** `findManageableEmployee` — só FUNCIONÁRIO da própria empresa (não a si, não GERENTE/MASTER).
 
-**Detalhes R-17 (planejado):** MASTER concede/revoga o papel de GERENTE de uma empresa. Toca a trava de "um GERENTE por empresa" (índice único parcial) + RBAC. Modo Opus, Discovery antes. Por último por ser a mais sensível.
+**Detalhes R-17 (mergeado — Back #70 / Front #36):**
+- **Rota:** `PATCH /companies/:companyId/users/:userId/role` protegida por `MasterGuard` (sem `CompanyAccessGuard` — master não tem `companyId`; isolamento de tenant feito no service via `target.companyId !== companyId` → 404, não 403, para não vazar existência).
+- **DTO:** `ChangeRoleDto { role: GERENTE | FUNCIONARIO }` — whitelist exclui MASTER.
+- **`findEmployeeForRoleChange`:** aceita GERENTE e FUNCIONARIO como alvo (diferente do R-16 que só aceita FUNCIONARIO); rejeita `isMaster → 403`; 404 cross-tenant.
+- **Double-guard 409:** check eager no service (`findOne({ where: { companyId, role: GERENTE, deletedAt: IsNull() } })`) + catch de `23505` via `throwOnUniqueViolation` para race condition entre requests simultâneos.
+- **Migration `FixGerenteIndexSoftDelete`:** dropa `UQ_user_one_gerente_per_company` (originalmente `WHERE "role" = 'GERENTE'`, sem filtro de `deletedAt`) e recria com `WHERE "role" = 'GERENTE' AND "deletedAt" IS NULL`. O `down()` restaura o índice sem o filtro de `deletedAt` — estado vulnerável; documentado com comentário na migration.
+- **Frontend:** badge de papel (ShieldCheck âmbar = Gerente / UserCheck cinza = Funcionário), botões Promover/Rebaixar com dialog de confirmação; "Promover" desabilitado (com tooltip) quando já existe gerente ativo. `useApiMutation` ganhou escape-hatch `onError → true` suprime o toast genérico (commit separado de refactor + fix). Botão "Atribuir admin" removido (rota `POST /condominiums/:id/members` nunca existiu no backend).
+- **Limitação conhecida (Fase F):** rebaixar+promover simultâneos de agentes distintos pode produzir 409 espúrio no segundo request — risco de produto aceito.
 
-> ⚠️ **Armadilha herdada do R-16 (anotada enquanto fresca):** a trava "um GERENTE por empresa" é um **índice único PARCIAL no banco** (`UQ_user_one_gerente_per_company ... WHERE role = 'GERENTE'`). Esse índice enxerga a **linha física**, não o soft-delete do TypeORM: um GERENTE **soft-deleted ainda ocupa a vaga** do índice. Não morde no R-16 (o alvo de editar/desativar é só FUNCIONARIO), mas é armadilha direta no R-17 quando o MASTER trocar de Gerente — desativar o Gerente atual e tentar promover outro vai colidir no índice (`23505`) porque o desativado continua contando. O R-17 precisará lidar com isso (ex.: índice parcial que também exija `deletedAt IS NULL`, ou hard-handover transacional).
+> **Armadilha do índice de Gerente vs soft-delete — RESOLVIDA no R-17.** Originalmente `UQ_user_one_gerente_per_company` enxergava a linha física (sem filtro de `deletedAt`): um GERENTE soft-deleted ainda bloqueava a vaga. Corrigido pela migration `FixGerenteIndexSoftDelete`: índice recriado com `WHERE "role" = 'GERENTE' AND "deletedAt" IS NULL`.
 
 ### Fase D — Deploy
 
@@ -187,8 +189,9 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 | R-20 | Avaliar skills/MCPs instalados | P3 | — | — |
 | R-21 | Avaliar proteção CSRF (cookie `SameSite=None` em prod) | P2 | back | Opus |
 | R-22 | Conserto definitivo do seed do Master (remover senha hard-coded da migration legada na origem; forçar troca no 1º login) | P2 | back | Opus |
+| R-23 | Unificar tratamento de erro do front — subir a lógica do `toastMutationError` para o `useApiMutation`; migrar `useMutation` diretos (`login`, `infraction-images`, `company/employees`) | P2 | front | Sonnet |
 
-**Melhorias de UX identificadas (não bloqueiam):** filtro de infrações por condomínio (hoje só `unitId`); filtros de período no dashboard e audit-log; filtro `includeInactive` na listagem de usuários (avaliado no R-16); atualizar `docs/discovery-tenant-isolation.md:159` (cita `listEmployees`, removido no R-15).
+**Melhorias de UX identificadas (não bloqueiam):** filtro de infrações por condomínio (hoje só `unitId`); filtros de período no dashboard e audit-log; `RequireAuth` sem papel `gerente` (tipo `Role = master|company`; gate de tela gated-por-gerente é manual com janela branca transitória de ~0,5s — não é bug de segurança, back bloqueia, mas é dívida estrutural); atualizar `docs/discovery-tenant-isolation.md:159` (cita `listEmployees`, removido no R-15).
 
 ---
 
@@ -207,13 +210,9 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 
 ## 7. Ordem recomendada e estado
 
-**Concluído:** Fase A (R-01→R-07), Fase B (R-08, R-09), Fase C (R-10→R-13) + fixes de produto. R-14 parte código (segurança da senha do Master + infra de migration prod). R-15 (gestão de funcionários — GERENTE cria/lista).
+**Concluído:** Fase A (R-01→R-07), Fase B (R-08, R-09), Fase C (R-10→R-13) + fixes de produto. R-14 parte código (segurança da senha do Master + infra de migration prod). Fase G completa: R-15 (Back #66 / Front #33), R-16 (Back #69 / Front #34), R-17 (Back #70 / Front #36).
 
-**Em andamento:** R-16 (editar/desativar funcionário — soft-delete). Aguardando PARADA 1 (plano de revogação de acesso + guards) antes da implementação.
-
-**Próximo:** R-16 → R-17 (Master gerencia papel de Gerente) → **R-14 parte config de plataforma** (subir o piloto no Railway + Vercel).
-
-**Cuidado com escopo:** a ordem foi deliberadamente reordenada para subir o piloto só com as funcionalidades básicas de gestão de usuários completas. Não inflar R-16/R-17; não antecipar Fase F. Deploy é o último passo antes do piloto.
+**Próximo e último passo antes do piloto:** R-14 config de plataforma (Railway + Vercel). Ver §5 para o checklist completo de configuração. Requer segredos de produção — usar Modo Opus, chat novo.
 
 **Depois:** Fase F (incremental, pós-validação com clientes-piloto).
 
