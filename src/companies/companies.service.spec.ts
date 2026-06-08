@@ -468,6 +468,126 @@ describe('CompaniesService', () => {
     });
   });
 
+  describe('changeRole (R-17)', () => {
+    const companyId = 1;
+    const funcionario = {
+      id: 10,
+      companyId,
+      isMaster: false,
+      role: SystemRole.FUNCIONARIO,
+      nome: 'Func',
+      email: 'func@x.com',
+      deletedAt: null,
+    };
+    const gerente = {
+      id: 11,
+      companyId,
+      isMaster: false,
+      role: SystemRole.GERENTE,
+      nome: 'Gerente',
+      email: 'gerente@x.com',
+      deletedAt: null,
+    };
+
+    it('promove FUNCIONARIO→GERENTE quando não há gerente ativo (200)', async () => {
+      usersRepo.findOne
+        .mockResolvedValueOnce({ ...funcionario }) // findEmployeeForRoleChange
+        .mockResolvedValueOnce(null); // check gerente ativo
+      usersRepo.save.mockImplementation((u: any) => Promise.resolve(u));
+
+      const result = await service.changeRole(
+        companyId,
+        10,
+        SystemRole.GERENTE,
+      );
+      expect(result).toMatchObject({
+        id: 10,
+        role: SystemRole.GERENTE,
+      });
+      expect(usersRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ role: SystemRole.GERENTE }),
+      );
+    });
+
+    it('promove quando já há gerente ativo → 409 legível', async () => {
+      usersRepo.findOne
+        .mockResolvedValueOnce({ ...funcionario }) // findEmployeeForRoleChange
+        .mockResolvedValueOnce({ ...gerente }); // check gerente ativo → encontrou
+
+      await expect(
+        service.changeRole(companyId, 10, SystemRole.GERENTE),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('gerente ativo'),
+      });
+      expect(usersRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rebaixa GERENTE→FUNCIONARIO sem verificar conflito (200)', async () => {
+      usersRepo.findOne.mockResolvedValueOnce({ ...gerente }); // findEmployeeForRoleChange
+      usersRepo.save.mockImplementation((u: any) => Promise.resolve(u));
+
+      const result = await service.changeRole(
+        companyId,
+        11,
+        SystemRole.FUNCIONARIO,
+      );
+      expect(result).toMatchObject({ id: 11, role: SystemRole.FUNCIONARIO });
+      // check de gerente ativo NÃO deve ser chamado para rebaixamento
+      expect(usersRepo.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('role igual ao atual → 400 (sem efeito)', async () => {
+      usersRepo.findOne.mockResolvedValueOnce({ ...funcionario });
+
+      await expect(
+        service.changeRole(companyId, 10, SystemRole.FUNCIONARIO),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('alvo inexistente → 404', async () => {
+      usersRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.changeRole(companyId, 999, SystemRole.GERENTE),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('alvo de outra empresa → 404 (não vaza existência cross-tenant)', async () => {
+      usersRepo.findOne.mockResolvedValueOnce({ ...funcionario, companyId: 2 });
+
+      await expect(
+        service.changeRole(companyId, 10, SystemRole.GERENTE),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('alvo isMaster → 403', async () => {
+      usersRepo.findOne.mockResolvedValueOnce({
+        ...funcionario,
+        isMaster: true,
+        role: SystemRole.MASTER,
+      });
+
+      await expect(
+        service.changeRole(companyId, 10, SystemRole.FUNCIONARIO),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('corrida: save lança 23505 → ConflictException (não 500)', async () => {
+      usersRepo.findOne
+        .mockResolvedValueOnce({ ...funcionario })
+        .mockResolvedValueOnce(null); // check passou
+      const driverError = Object.assign(new Error('dup'), { code: '23505' });
+      usersRepo.save.mockRejectedValue(
+        new QueryFailedError('UPDATE', [], driverError),
+      );
+
+      await expect(
+        service.changeRole(companyId, 10, SystemRole.GERENTE),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
   describe('findOne', () => {
     it('retorna empresa quando existe', async () => {
       companiesRepo.findOneBy.mockResolvedValue({ id: 5 });

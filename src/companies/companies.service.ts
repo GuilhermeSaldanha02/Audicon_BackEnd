@@ -10,7 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { AuditService, Actor } from '../audit/audit.service';
 import { SystemRole } from '../common/enums/system-role.enum';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { throwOnUniqueViolation } from '../common/helpers/unique-violation.helper';
 import * as crypto from 'crypto';
 import { Company } from './entities/company.entity';
@@ -337,6 +337,85 @@ export class CompaniesService {
       throw new NotFoundException(`Empresa #${id} não encontrada.`);
     }
     return company;
+  }
+
+  /**
+   * R-17: localiza o usuário-alvo de uma mudança de papel, aplicando escopo
+   * de tenant e restrições de segurança:
+   * - alvo inexistente ou de outra empresa → 404 (não vaza existência cross-tenant)
+   * - alvo isMaster → 403
+   * - alvo soft-deleted → 404 (trata como inexistente)
+   * Aceita GERENTE e FUNCIONARIO como alvos (ao contrário de findManageableEmployee
+   * do R-16, que bloqueia GERENTE de propósito para anti-escalonamento).
+   */
+  private async findEmployeeForRoleChange(
+    companyId: number,
+    userId: number,
+  ): Promise<User> {
+    const target = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+    if (!target || target.companyId !== companyId) {
+      throw new NotFoundException(
+        `Usuário #${userId} não encontrado nesta empresa.`,
+      );
+    }
+    if (target.isMaster) {
+      throw new ForbiddenException(
+        'Não é possível alterar o papel de um master.',
+      );
+    }
+    return target;
+  }
+
+  /**
+   * R-17: MASTER promove FUNCIONARIO→GERENTE ou rebaixa GERENTE→FUNCIONARIO.
+   *
+   * Duas camadas de proteção contra gerente duplicado:
+   * (a) check no service antes do UPDATE — cobre o caso comum com mensagem legível;
+   * (b) catch de 23505 via throwOnUniqueViolation — cobre corrida entre dois
+   *     requests simultâneos que passaram pelo check (a).
+   */
+  async changeRole(
+    companyId: number,
+    userId: number,
+    role: SystemRole.GERENTE | SystemRole.FUNCIONARIO,
+  ): Promise<{ id: number; nome: string; email: string; role: SystemRole }> {
+    const target = await this.findEmployeeForRoleChange(companyId, userId);
+
+    if (role === target.role) {
+      throw new BadRequestException(
+        `Usuário já possui o papel ${role}. Nenhuma alteração necessária.`,
+      );
+    }
+
+    if (role === SystemRole.GERENTE) {
+      const existing = await this.usersRepository.findOne({
+        where: { companyId, role: SystemRole.GERENTE, deletedAt: IsNull() },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'Esta empresa já possui um gerente ativo — rebaixe-o primeiro.',
+        );
+      }
+    }
+
+    target.role = role;
+    try {
+      const saved = await this.usersRepository.save(target);
+      return {
+        id: saved.id,
+        nome: saved.nome,
+        email: saved.email,
+        role: saved.role,
+      };
+    } catch (err) {
+      throwOnUniqueViolation(
+        err,
+        'Esta empresa já possui um gerente ativo — rebaixe-o primeiro.',
+      );
+      throw err;
+    }
   }
 
   async remove(id: number, actor: Actor): Promise<{ id: number }> {
