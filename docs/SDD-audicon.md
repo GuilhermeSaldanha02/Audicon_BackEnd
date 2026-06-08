@@ -18,7 +18,7 @@ Fonte única de verdade para a continuidade do Audicon — `Audicon_BackEnd` e `
   - **R-17 (planejado):** MASTER promove/rebaixa o GERENTE da empresa (toca a trava de Gerente único).
 - **Bug R-14 (deploy) parte código: mergeado.** Fix do `data-source.ts` (glob via `__dirname`, caminho A), script `migration:run:prod`, migration da senha do Master. PRs Back #65 / Front #32 (config de Vercel: `.env.example`, `engines`, `.nvmrc`). Falta a parte de **configuração de plataforma** (Railway/Vercel) — ver §5.
 - **Dois falsos-positivos esclarecidos (não eram bugs):** a "tela preta" ao clicar Funcionários como GERENTE era um 404 nativo do Next em dark mode (link da sidebar apontava para rota inexistente `/company/employees`, criada no R-15); o "e-mail não envia" local era o modo mock esperado (sem `RESEND_API_KEY`).
-- **Baseline de testes atualizada:** backend 365 unit / 46 e2e (após R-15).
+- **Baseline de testes atualizada:** backend 383 unit / 67 e2e (após R-17).
 
 **Objetivo do projeto:** MVP para uso real com clientes. Meta da próxima entrega: gestão de usuários completa (R-15→R-17), depois deploy do piloto (R-14).
 
@@ -29,7 +29,7 @@ Fonte única de verdade para a continuidade do Audicon — `Audicon_BackEnd` e `
 **Audicon** — SaaS B2B multi-tenant para gestão de infrações em condomínios, com análise por IA (Google Gemini) e geração de PDF. Vendido para **empresas de administração de condomínios**.
 
 **Repositórios:**
-- `Audicon_BackEnd` — NestJS / TypeScript / TypeORM / PostgreSQL. **Fundação completa.** 365 unit tests, 46 e2e, módulos: `auth`, `users`, `companies`, `condominiums`, `units`, `infractions`, `ia`, `pdf`, `health`, `audit`, `dashboard`, `notifications`, `mail`, `whatsapp`, `common`.
+- `Audicon_BackEnd` — NestJS / TypeScript / TypeORM / PostgreSQL. **Fundação completa.** 383 unit tests, 67 e2e, módulos: `auth`, `users`, `companies`, `condominiums`, `units`, `infractions`, `ia`, `pdf`, `health`, `audit`, `dashboard`, `notifications`, `mail`, `whatsapp`, `common`.
 - `Audicon_Web` — Next.js 15 / React 19 / Tailwind 4 / shadcn. **13 telas funcionais** (12 do Open Design + `/company/employees` do R-15) com design system aplicado. CI mínimo: next lint + next build em PR.
 
 **Regra de produto fundamental:** o **morador NÃO tem acesso** ao sistema. Não existe perfil de morador/inquilino/condômino como usuário.
@@ -112,7 +112,7 @@ Campos principais: `description`, `formalDescription`, `suggestedPenalty`, `stat
 | C3 | Toda exceção previsível usa `HttpException`/subclasses. |
 | C4 | Mudança de schema gera migration. Nunca `synchronize: true`. |
 | C5 | Zero segredo hard-coded — tudo via `ConfigService`; variáveis novas no `.env.example` (back e front). |
-| C6 | Cobertura de testes não regride (baseline atual: 365 unit / 46 e2e). |
+| C6 | Cobertura de testes não regride (baseline atual: 383 unit / 67 e2e). |
 | C7 | Conventional Commits. |
 | C8 | PR referencia o ID da tarefa (ex.: `R-16`). |
 | C9 | Isolamento de tenant respeitado em toda query de negócio. Master ignora. Padrão canônico em §2.3. |
@@ -230,6 +230,7 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 - **Open Design:** ferramenta usada na Fase C para gerar o design system e as 12 telas de referência. Trabalho encerrado — telas novas espelham o design system já no código.
 
 **Changelog:**
+- v3.4 — R-17 mergeado: MASTER promove/rebaixa GERENTE; migration FixGerenteIndexSoftDelete (índice parcial inclui `deletedAt IS NULL`); endpoint PATCH /companies/:companyId/users/:userId/role (MasterGuard); remoção do "Atribuir admin" do front (rota inexistente); baseline 383 unit / 67 e2e.
 - v3.3 — ordem do deploy invertida (R-14 depois de R-15/16/17); achado/correção da senha do Master (CWE-798) registrado em §2.2; Fase G (gestão de usuários: R-15 mergeado, R-16 em andamento, R-17 planejado); R-14 parte código mergeada, parte config de plataforma detalhada; `CompanyAccessGuard` em §2.3; soft-delete em §3.4 e glossário; falsos-positivos (tela preta = 404 dark mode, e-mail = mock) esclarecidos; R-22 (conserto do seed) na Fase F; baseline 365 unit / 46 e2e.
 - v3.2 — Fases B e C completas; Fase E absorvida; R-08→R-13; fixes de produto; R-21 (CSRF); baseline 362/36.
 - v3.1 — Fase A completa; R-06/R-07; baseline 345 unit.

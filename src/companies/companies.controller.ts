@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { ChangeRoleDto } from './dto/change-role.dto';
 import { CurrentActor } from '../common/decorators/current-actor.decorator';
 import { Actor } from '../audit/audit.service';
 import { CompanyResponseDto } from './dto/company-response.dto';
@@ -36,6 +37,7 @@ import { CondominiumsService } from '../condominiums/condominiums.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import {
+  ChangeRoleResponseDto,
   CompanyUserResponseDto,
   CreatedEmployeeResponseDto,
 } from './dto/company-user-response.dto';
@@ -258,6 +260,39 @@ export class CompaniesController {
     @Param('userId', ParseIntPipe) userId: number,
   ) {
     return this.companiesService.deactivateEmployee(companyId, userId, actor);
+  }
+
+  @ApiOperation({
+    summary:
+      'R-17: Promover FUNCIONARIO→GERENTE ou rebaixar GERENTE→FUNCIONARIO ' +
+      '(apenas master). Máximo um GERENTE ativo por empresa.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Papel alterado',
+    type: ChangeRoleResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'role inválido | isMaster no body | role igual ao atual',
+  })
+  @ApiResponse({ status: 403, description: 'Apenas master' })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuário inexistente, soft-deleted ou de outra empresa',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Empresa já possui um gerente ativo',
+  })
+  @UseGuards(MasterGuard)
+  @Patch(':companyId/users/:userId/role')
+  changeRole(
+    @Param('companyId', ParseIntPipe) companyId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() dto: ChangeRoleDto,
+  ) {
+    return this.companiesService.changeRole(companyId, userId, dto.role);
   }
 
   @ApiOperation({

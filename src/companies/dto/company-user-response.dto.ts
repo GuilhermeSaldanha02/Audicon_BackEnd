@@ -25,6 +25,21 @@ export class CompanyUserResponseDto {
   deletedAt: Date | null;
 }
 
+/** R-17: retorno de PATCH /companies/:companyId/users/:userId/role */
+export class ChangeRoleResponseDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  nome: string;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({ enum: SystemRole })
+  role: SystemRole;
+}
+
 /** Retorno de POST /companies/:id/users — inclui a senha temporária gerada. */
 export class CreatedEmployeeResponseDto {
   @ApiProperty()
