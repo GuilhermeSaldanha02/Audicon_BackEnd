@@ -97,6 +97,8 @@ Campos principais: `description`, `formalDescription`, `suggestedPenalty`, `stat
 - **E-mail preso.** Com `@DeleteDateColumn` + `unique` não-parcial em `email`, o e-mail de um usuário desativado **continua reservado a ele**: não pode ser reusado/recriado enquanto o registro existir. O `createEmployee` **normaliza** esse caso para `409 ConflictException` (rede de segurança em volta do `save`, mesma mensagem do pré-check de ativo — não vaza que o e-mail é de um desativado), então o front mostra "e-mail já em uso" em vez de um `500`/`23505` cru. **O que NÃO foi feito (decisão (i), Fase F):** permitir o *reuso* do e-mail ou *reativar* o usuário — só a higiene do erro entrou no R-16.
 - **Sem reativação.** Não há rota nem UI para reativar um funcionário desativado. Em produção isso é capenga (gerente desativa por engano → sem saída via produto). Vira melhoria de Fase F.
 
+**Geração de PDF (PDFKit — R-14a):** `formalDescription` e `suggestedPenalty` alimentam o documento de infração gerado por `PdfService.gerarDocumentoInfracao()`. O relatório em massa usa `streamInfractionReport()`. Ambos em PT-BR desde o PR #71. Dependência de ICU coberta: Node 20 full-icu (Docker e Railway).
+
 ---
 
 ## 4. Convenções obrigatórias
@@ -164,6 +166,7 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 | ID | Tarefa | Prioridade | Repo | Modelo | Status |
 |---|---|---|---|---|---|
 | R-14 | Publicar para clientes-piloto: Railway (backend + Postgres) + Vercel (frontend); migrations + seed Master no deploy; healthcheck; CORS prod; cookie flags prod | P0 | ambos | Opus | **Parte código mergeada; falta config de plataforma** |
+| R-14a | i18n do PDF: traduzir `gerarDocumentoInfracao` e `streamInfractionReport` de inglês para português; datas `toLocaleDateString('pt-BR')` | P0 | back | Sonnet | **Mergeado** — Back #71 |
 
 **R-14 — parte código (mergeada):** fix do `data-source.ts` (glob `__dirname` `{ts,js}`, caminho A); script `migration:run:prod` (`typeorm migration:run -d dist/data-source.js`, sem ts-node); migration `UpdateMasterPasswordFromEnv` (§2.2). Front: `.env.example`, `engines.node ">=20"`, `.nvmrc`, exceção `!.env.example` no `.gitignore`. PRs Back #65 / Front #32.
 
@@ -174,6 +177,8 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 - CORS: origem de produção da Vercel (sem wildcard — incompatível com `credentials: true`).
 - **Ordem:** backend primeiro (input caro `NEXT_PUBLIC_API_URL` é build-time; CORS é runtime, ajustável depois sem rebuild).
 - **Decisão pendente:** e-mail real no piloto (configurar `RESEND_API_KEY`) ou mock.
+
+**R-14a — i18n do PDF (mergeado — Back #71):** textos fixos de `gerarDocumentoInfracao` e `streamInfractionReport` traduzidos para PT-BR ("Occurrence Details" → "Detalhes da Ocorrência", "Recommended Action" → "Providência Recomendada", "Report" → "Relatório de Infrações", etc.); datas via `toLocaleDateString('pt-BR')` / `toLocaleString('pt-BR')`; 1 teste de string atualizado (baseline 383/67 inalterado). ICU verificada: Node 20 full-icu (Docker + Railway). Polimento visual registrado como não-bloqueador na Fase F.
 
 ### ~~Fase E — Visual com Open Design~~ — ABSORVIDA NA FASE C
 
@@ -192,6 +197,8 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 | R-23 | Unificar tratamento de erro do front — subir a lógica do `toastMutationError` para o `useApiMutation`; migrar `useMutation` diretos (`login`, `infraction-images`, `company/employees`) | P2 | front | Sonnet |
 
 **Melhorias de UX identificadas (não bloqueiam):** filtro de infrações por condomínio (hoje só `unitId`); filtros de período no dashboard e audit-log; `RequireAuth` sem papel `gerente` (tipo `Role = master|company`; gate de tela gated-por-gerente é manual com janela branca transitória de ~0,5s — não é bug de segurança, back bloqueia, mas é dívida estrutural); atualizar `docs/discovery-tenant-isolation.md:159` (cita `listEmployees`, removido no R-15).
+
+**Polimento do PDF (não bloqueia o piloto):** (a) quebra de página quando há imagens — o fecho "Atenciosamente / Audicon" fragmenta na última página; testar com imagens REAIS (não placeholders) antes de ajustar; (b) identidade visual — logo, cabeçalho da administradora, cores brand, fonte Inter, data de emissão, assinatura. Hoje o PDF é funcional mas sem identidade visual.
 
 ---
 
@@ -229,6 +236,7 @@ R-10 (12 telas), R-11 (middleware.ts), R-12 (tipos OpenAPI + Swagger), R-13 (COR
 - **Open Design:** ferramenta usada na Fase C para gerar o design system e as 12 telas de referência. Trabalho encerrado — telas novas espelham o design system já no código.
 
 **Changelog:**
+- v3.4 (adendo R-14a) — PDF traduzido para PT-BR (`gerarDocumentoInfracao` + `streamInfractionReport`, PR Back #71); polimento visual e quebra de página registrados na Fase F.
 - v3.4 — R-17 mergeado: MASTER promove/rebaixa GERENTE; migration FixGerenteIndexSoftDelete (índice parcial inclui `deletedAt IS NULL`); endpoint PATCH /companies/:companyId/users/:userId/role (MasterGuard); remoção do "Atribuir admin" do front (rota inexistente); baseline 383 unit / 67 e2e.
 - v3.3 — ordem do deploy invertida (R-14 depois de R-15/16/17); achado/correção da senha do Master (CWE-798) registrado em §2.2; Fase G (gestão de usuários: R-15 mergeado, R-16 em andamento, R-17 planejado); R-14 parte código mergeada, parte config de plataforma detalhada; `CompanyAccessGuard` em §2.3; soft-delete em §3.4 e glossário; falsos-positivos (tela preta = 404 dark mode, e-mail = mock) esclarecidos; R-22 (conserto do seed) na Fase F; baseline 365 unit / 46 e2e.
 - v3.2 — Fases B e C completas; Fase E absorvida; R-08→R-13; fixes de produto; R-21 (CSRF); baseline 362/36.

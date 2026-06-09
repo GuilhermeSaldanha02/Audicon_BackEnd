@@ -57,9 +57,11 @@ Fundação (R-01→R-07), Segurança (R-08, R-09), Frontend (R-10→R-13) + fixe
 ### R-14 (Deploy) — parte código MERGEADA, parte config PENDENTE
 Fix do `data-source.ts` (glob `__dirname`), `migration:run:prod`, migration `UpdateMasterPasswordFromEnv` (senha do Master, CWE-798). Front: `.env.example`, `engines`, `.nvmrc`. PRs Back #65 / Front #32. **Falta só config de plataforma (Railway + Vercel) — é setting, reordenado para depois do R-17.**
 
+**R-14a — i18n do PDF (mergeado — Back #71):** `gerarDocumentoInfracao` e `streamInfractionReport` traduzidos de inglês para PT-BR; datas `toLocaleDateString('pt-BR')`; 1 teste de string atualizado. Baseline de testes inalterado (383 unit / 67 e2e — modificação de teste existente, não adição). Polimento visual (logo, identidade, quebra de página com imagens) registrado como não-bloqueador na Fase F.
+
 ## Onde parei — exatamente aqui
 
-**Fase G completa.** R-16 (Back #69 / Front #34) e R-17 (Back #70 / Front #36) mergeados em master. Não há PRs abertos em nenhum dos dois repos.
+**Fase G completa.** R-16 (Back #69 / Front #34) e R-17 (Back #70 / Front #36) mergeados em master. **R-14a mergeado (Back #71):** PDF traduzido para PT-BR. Não há PRs abertos em nenhum dos dois repos.
 
 **Próximo e único passo restante antes do piloto: R-14 config de plataforma.**
 Toda a configuração do Railway (backend + Postgres) e Vercel (frontend) está detalhada no SDD §5. É trabalho de settings/painel — sem PR de código — e usa segredos de produção (`JWT_SECRET`, `MASTER_PASSWORD`, API keys). Recomendar **chat novo, Modo Opus**.
@@ -133,5 +135,5 @@ No `Audicon_Web` há um `git stash` pendente: `stash@{0}` com pasta `design-syst
 
 1. No **Projeto "Audicon"** no claude.ai, substitua este handoff + o `SDD-audicon.md` v3.4.
 2. Abra um chat novo dentro do projeto.
-3. Primeira mensagem sugerida: "Estou retomando o Audicon. Fase G completa (R-15, R-16, R-17 mergeados — Back #66/#69/#70, Front #33/#34/#36). Próximo e único passo: R-14 config de plataforma (Railway + Vercel). Modo Opus — envolve segredos de produção e infra. Ver SDD §5 para o checklist de configuração."
+3. Primeira mensagem sugerida: "Estou retomando o Audicon. Fase G completa (R-15, R-16, R-17 mergeados — Back #66/#69/#70, Front #33/#34/#36). R-14a mergeado (Back #71): PDF traduzido para PT-BR. Próximo e único passo: R-14 config de plataforma (Railway + Vercel). Modo Opus — envolve segredos de produção e infra. Ver SDD §5 para o checklist de configuração."
 4. O novo chat terá todo o contexto sem o peso do histórico anterior.
