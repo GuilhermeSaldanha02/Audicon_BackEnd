@@ -12,35 +12,35 @@ export class PdfService {
     const doc = new PDFDocument({ margin: 50 });
     const buffers: Buffer[] = [];
     doc.on('data', buffers.push.bind(buffers));
-    doc.fontSize(20).text('Infraction Notice', { align: 'center' });
+    doc.fontSize(20).text('Notificação de Infração', { align: 'center' });
     doc.moveDown();
-    doc.fontSize(12).text(`Condominium: ${infraction.unit.condominium.name}`);
-    doc.text(`Unit: ${infraction.unit.identifier}`);
-    doc.text(`Owner: ${infraction.unit.ownerName}`);
+    doc.fontSize(12).text(`Condomínio: ${infraction.unit.condominium.name}`);
+    doc.text(`Unidade: ${infraction.unit.identifier}`);
+    doc.text(`Proprietário: ${infraction.unit.ownerName}`);
     doc.moveDown();
-    doc.fontSize(14).text('Occurrence Details', { underline: true });
+    doc.fontSize(14).text('Detalhes da Ocorrência', { underline: true });
     doc.moveDown();
     doc.fontSize(12);
     doc.text(
-      `Occurrence Date: ${new Date(infraction.occurrenceDate).toLocaleString('en-US')}`,
+      `Data da Ocorrência: ${new Date(infraction.occurrenceDate).toLocaleDateString('pt-BR')}`,
     );
     doc.moveDown();
-    doc.text('Description:', { continued: false });
-    doc.text(infraction.formalDescription || 'Description not available.', {
+    doc.text('Descrição:', { continued: false });
+    doc.text(infraction.formalDescription || 'Descrição não disponível.', {
       align: 'justify',
       indent: 20,
     });
     doc.moveDown();
-    doc.fontSize(14).text('Recommended Action', { underline: true });
+    doc.fontSize(14).text('Providência Recomendada', { underline: true });
     doc.moveDown();
     doc
       .fontSize(12)
       .text(
-        `The suggested penalty for this occurrence is: ${infraction.suggestedPenalty || 'Not defined'}.`,
+        `A penalidade sugerida para esta ocorrência é: ${infraction.suggestedPenalty || 'Não definida'}.`,
       );
     if (imageBuffers.length > 0) {
       doc.addPage();
-      doc.fontSize(14).text('Evidence', { underline: true });
+      doc.fontSize(14).text('Evidências', { underline: true });
       doc.moveDown();
       const thumbWidth = 230;
       const thumbHeight = 170;
@@ -70,10 +70,10 @@ export class PdfService {
       doc.y = doc.y + Math.ceil(imageBuffers.length / 2) * (thumbHeight + gapY);
     }
     doc.moveDown(3);
-    doc.fontSize(10).text('Sincerely,', { align: 'center' });
+    doc.fontSize(10).text('Atenciosamente,', { align: 'center' });
     doc
       .fontSize(10)
-      .text('Audicon Condominiums Administration', { align: 'center' });
+      .text('Audicon — Administração de Condomínios', { align: 'center' });
     return new Promise((resolve, reject) => {
       doc.on('end', () => {
         resolve(Buffer.concat(buffers));
@@ -89,40 +89,44 @@ export class PdfService {
   ): Promise<void> {
     const doc = new PDFDocument({ margin: 50 });
     doc.pipe(sink);
-    doc.fontSize(20).text('Infractions Report', { align: 'center' });
+    doc.fontSize(20).text('Relatório de Infrações', { align: 'center' });
     doc.moveDown();
-    doc.fontSize(12).text(`Condominium: ${condominium.name}`);
+    doc.fontSize(12).text(`Condomínio: ${condominium.name}`);
     doc.text(`CNPJ: ${condominium.cnpj}`);
-    doc.text(`Address: ${condominium.address}`);
-    doc.text(`Generated at: ${new Date().toISOString()}`);
-    doc.text(`Total infractions: ${infractions.length}`);
+    doc.text(`Endereço: ${condominium.address}`);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`);
+    doc.text(`Total de infrações: ${infractions.length}`);
     doc.moveDown();
-    doc.fontSize(14).text('Infractions', { underline: true });
+    doc.fontSize(14).text('Infrações', { underline: true });
     doc.moveDown(0.5);
     if (infractions.length === 0) {
-      doc.fontSize(12).text('No infractions found in the selected period.');
+      doc
+        .fontSize(12)
+        .text('Nenhuma infração encontrada no período selecionado.');
     } else {
       for (const inf of infractions) {
         doc
           .fontSize(12)
-          .text(`#${inf.id} · ${new Date(inf.occurrenceDate).toISOString()}`);
+          .text(
+            `#${inf.id} · ${new Date(inf.occurrenceDate).toLocaleDateString('pt-BR')}`,
+          );
         if (inf.unit) {
           doc.text(
-            `Unit: ${inf.unit.identifier ?? '-'} | Owner: ${inf.unit.ownerName ?? '-'}`,
+            `Unidade: ${inf.unit.identifier ?? '-'} | Proprietário: ${inf.unit.ownerName ?? '-'}`,
           );
         }
-        doc.text(`Description: ${inf.description}`, {
+        doc.text(`Descrição: ${inf.description}`, {
           align: 'justify',
           indent: 20,
         });
         if (inf.formalDescription) {
-          doc.text(`AI analysis: ${inf.formalDescription}`, {
+          doc.text(`Análise da IA: ${inf.formalDescription}`, {
             align: 'justify',
             indent: 20,
           });
         }
         if (inf.suggestedPenalty) {
-          doc.text(`Suggested penalty: ${inf.suggestedPenalty}`, {
+          doc.text(`Penalidade sugerida: ${inf.suggestedPenalty}`, {
             indent: 20,
           });
         }

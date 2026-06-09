@@ -122,7 +122,7 @@ describe('PdfService', () => {
     const allTextCalls = (inst.text as jest.Mock).mock.calls
       .map((c) => c[0])
       .join(' ');
-    expect(allTextCalls).toContain('No infractions found');
+    expect(allTextCalls).toContain('Nenhuma infração encontrada');
   });
   it('renderiza página de evidências quando recebe imagens', async () => {
     const infraction: any = {
